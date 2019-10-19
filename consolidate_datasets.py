@@ -20,11 +20,12 @@ def get_scenes_from_transition_frames(transition_frames, video_len):
         else:
             scenes.append((scene_start, curr_frame))
         prev_idx = curr_frame
-    
+
     if curr_frame != video_len - 1:
         scenes.append((scene_start, video_len - 1))
-    
+
     return np.array(scenes)
+
 
 def save_csv(fn, csv_data):
     with open(fn + ".txt", "w") as f:
@@ -171,23 +172,33 @@ def clipshots_dataset(txt_files, mp4_files, target_dir):
     for fn in tqdm(glob.glob(mp4_files)):
         fn = os.path.abspath(fn)
         k = os.path.basename(fn)
-        
+
         # number of frames must be integer, check it is true
         assert int(gt_data[k]['frame_num']) == gt_data[k]['frame_num']
         n_frames = int(gt_data[k]['frame_num'])
 
         video = get_frames(fn)
-        # gt data must match actual extracted data
-        if len(video) != n_frames:
-            print("WARN: {} video length {} vs length specified in gt {}, skipping it".format(k, len(video), n_frames))
+        if video is None:
+            print("ERROR: Video file error", k)
             continue
+        # gt data must match actual extracted data
+        plus = 0
+        if len(video) != n_frames:
+            if len(video) != n_frames + 1:
+                print("ERROR: {} video length {} vs length specified in gt {}, skipping it".format(
+                    k, len(video), n_frames))
+                continue
+            print("WARN: {} video length {} vs length specified in gt {}, adjusting ground truth".format(
+                k, len(video), n_frames))
+            plus = 1
+            n_frames = len(video)
 
         translations = np.array(gt_data[k]["transitions"])
         if len(translations) == 0:
             scenes = np.array([[0, n_frames - 1]])
         else:
-            scene_ends_zeroindexed = translations[:, 0]
-            scene_starts_zeroindexed = translations[:, 1]
+            scene_ends_zeroindexed = translations[:, 0] + plus
+            scene_starts_zeroindexed = translations[:, 1] + plus
             scene_starts_zeroindexed = np.concatenate([[0], scene_starts_zeroindexed])
             scene_ends_zeroindexed = np.concatenate([scene_ends_zeroindexed, [n_frames - 1]])
             scenes = np.stack([scene_starts_zeroindexed, scene_ends_zeroindexed], 1)
@@ -199,7 +210,8 @@ def clipshots_dataset(txt_files, mp4_files, target_dir):
         csv_data.append("{},{}".format(fn, save_to + ".txt"))
 
     save_csv(target_dir, csv_data)
-    
+
+
 print("Consolidating ClipShots Train Dataset...")
 clipshots_dataset(CLIPSHOTS_TRN_txt_files, CLIPSHOTS_TRN_mp4_files, CLIPSHOTS_TRN_target_dir)
 print("Consolidating ClipShots Test Dataset...")
