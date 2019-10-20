@@ -1,4 +1,3 @@
-import gin
 import numpy as np
 import tensorflow as tf
 
@@ -67,6 +66,10 @@ class DilatedDCNN(tf.keras.layers.Layer):
 
 
 class ResNet18(tf.keras.Model):
+
+    MEAN = np.array([0.485, 0.456, 0.406], np.float32).reshape([1, 1, 1, 3]) * 255
+    STD = np.array([0.229, 0.224, 0.225], np.float32).reshape([1, 1, 1, 3]) * 255
+
     def __init__(self, name="ResNet18"):
         super(ResNet18, self).__init__(name=name)
 
@@ -120,8 +123,8 @@ class ResNet18(tf.keras.Model):
             inputs = inputs[tf.newaxis]
         assert inputs.shape[1:] == (224, 224, 3)
 
-        mean = tf.constant(np.array([0.485, 0.456, 0.406], np.float32).reshape([1, 1, 1, 3]) * 255)
-        std = tf.constant(np.array([0.229, 0.224, 0.225], np.float32).reshape([1, 1, 1, 3]) * 255)
+        mean = tf.constant(ResNet18.MEAN)
+        std = tf.constant(ResNet18.STD)
 
         x = tf.cast(inputs, tf.float32)
         return (x - mean) / std
