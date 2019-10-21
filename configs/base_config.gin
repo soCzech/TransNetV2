@@ -1,0 +1,59 @@
+# Dataset Config
+#################
+
+shot_len = 100
+frame_width = 48
+frame_height = 27
+
+train_pipeline.shuffle_buffer = 100
+train_pipeline.shot_len = %shot_len
+train_pipeline.frame_width = %frame_width
+train_pipeline.frame_height = %frame_height
+train_pipeline.batch_size = 16
+train_pipeline.repeat = False
+
+parse_train_sample.shot_len = %shot_len
+parse_train_sample.frame_width = %frame_width
+parse_train_sample.frame_height = %frame_height
+
+augment_shot.up_down_flip_prob = 0.2
+augment_shot.left_right_flip_prob = 0.5
+augment_shot.adjust_saturation = True
+augment_shot.adjust_contrast = True
+augment_shot.adjust_brightness = True
+augment_shot.adjust_hue = True
+
+concat_shots.shot_len = %shot_len
+concat_shots.color_transfer_prob = 0.3
+concat_shots.transition_max_len = 60
+concat_shots.hard_cut_prob = 0.4
+concat_shots.cutout_prob = 0.3
+
+# affected by: concat_shots.cutout_prob
+cutout.min_width_fraction = 1/4
+cutout.min_height_fraction = 1/4
+cutout.max_width_fraction = 2/3
+cutout.max_height_fraction = 2/3
+
+
+# TransNet Config
+##################
+
+TransNetV2.F = 16
+TransNetV2.L = 3
+TransNetV2.S = 2
+TransNetV2.D = 256
+TransNetV2.use_resnet_features = False
+TransNetV2.use_many_hot_targets = False
+TransNetV2.use_frame_similarity = False
+
+StackedDDCNNV2.shortcut = False
+
+DilatedDCNNV2.batch_norm = False
+
+Conv3DConfigurable.separable = False
+
+# affected by: TransNetV2.use_frame_similarity
+FrameSimilarity.similarity_dim = 128
+FrameSimilarity.lookup_window = 101
+FrameSimilarity.output_dim = 128

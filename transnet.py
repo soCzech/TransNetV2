@@ -10,7 +10,8 @@ class TransNetV2(tf.keras.Model):
 
     def __init__(self, F=16, L=3, S=2, D=256,
                  use_resnet_features=False,
-                 use_manyhot_targets=False,
+                 use_many_hot_targets=False,
+                 use_frame_similarity=False,
                  name="TransNet"):
         super(TransNetV2, self).__init__(name=name)
 
@@ -18,7 +19,8 @@ class TransNetV2(tf.keras.Model):
         self.blocks = [StackedDDCNNV2(n_blocks=S, filters=F * 2**i, name="SDDCNN_{:d}".format(i + 1)) for i in range(L)]
         self.fc1 = tf.keras.layers.Dense(D, activation=tf.nn.relu)
         self.cls_layer1 = tf.keras.layers.Dense(1, activation=None)
-        self.cls_layer2 = tf.keras.layers.Dense(1, activation=None) if use_manyhot_targets else None
+        self.cls_layer2 = tf.keras.layers.Dense(1, activation=None) if use_many_hot_targets else None
+        self.frame_sim_layer = FrameSimilarity() if use_frame_similarity else None
 
     def call(self, inputs, training=False):
         x = inputs
@@ -29,6 +31,9 @@ class TransNetV2(tf.keras.Model):
 
         shape = [tf.shape(x)[0], tf.shape(x)[1], np.prod(x.get_shape().as_list()[2:])]
         x = tf.reshape(x, shape=shape, name="flatten_3d")
+
+        if self.frame_sim_layer is not None:
+            x = tf.concat([self.frame_sim_layer(x), x], 2)
 
         x = self.fc1(x)
         one_hot = self.cls_layer1(x)
@@ -161,7 +166,11 @@ class ResNetFeatures(tf.keras.Model):
 @gin.configurable(whitelist=["similarity_dim", "lookup_window", "output_dim"])
 class FrameSimilarity(tf.keras.layers.Layer):
 
-    def __init__(self, similarity_dim, lookup_window, output_dim, name="FrameSimilarity"):
+    def __init__(self,
+                 similarity_dim=128,
+                 lookup_window=101,
+                 output_dim=128,
+                 name="FrameSimilarity"):
         super(FrameSimilarity, self).__init__(name=name)
 
         self.projection = tf.keras.layers.Dense(similarity_dim, use_bias=False, activation=None)
