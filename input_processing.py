@@ -271,3 +271,36 @@ def lab_to_rgb(lab):
             rgb_pixels = (rgb_pixels * 12.92 * linear_mask) + ((rgb_pixels ** (1/2.4) * 1.055) - 0.055) * exponential_mask
 
         return tf.reshape(rgb_pixels, tf.shape(lab)) * 255.
+
+
+@gin.configurable(blacklist=["filenames"])
+def test_pipeline(filenames,
+                  shot_len=100,
+                  batch_size=16):
+    ds = tf.data.TFRecordDataset(filenames)
+    ds = ds.map(parse_test_sample, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    ds = ds.batch(shot_len, drop_remainder=True)
+    ds = ds.batch(batch_size)
+    ds = ds.prefetch(2)
+    return ds
+
+
+@tf.function
+@gin.configurable(blacklist=["sample"])
+def parse_test_sample(sample,
+                      frame_width=48,
+                      frame_height=27):
+    features = tf.parse_single_example(sample, features={
+        "frame": tf.FixedLenFeature([], tf.string),
+        "is_one_hot_transition": tf.FixedLenFeature([], tf.int64),
+        "is_many_hot_transition": tf.FixedLenFeature([], tf.int64)
+    })
+
+    frame = tf.decode_raw(features["frame"], tf.uint8)
+    frame = tf.reshape(frame, [frame_height, frame_width, 3])
+
+    one_hot = tf.cast(features["is_one_hot_transition"], tf.int32)
+    many_hot = tf.cast(features["is_many_hot_transition"], tf.int32)
+
+    frame = tf.cast(frame, dtype=tf.float32)
+    return frame, one_hot, many_hot
