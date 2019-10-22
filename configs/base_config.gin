@@ -1,3 +1,20 @@
+# Global Config
+################
+
+options.n_epochs = 5
+options.log_dir = "logs"
+options.trn_files = ["/glob/path/*.tfrecord"]
+options.tst_files = {"name": ["/glob/path/*.tfrecord"]}
+
+training.optimizer = @tf.keras.optimizers.Adam
+training.log_freq = 200
+training.grad_clipping = 10.
+tf.keras.optimizers.Adam.learning_rate = 0.001
+
+loss.transition_weight = 1.
+loss.many_hot_loss_weight = 0.
+loss.l2_loss_weight = 0.
+
 # Dataset Config
 #################
 
@@ -35,6 +52,12 @@ cutout.min_height_fraction = 1/4
 cutout.max_width_fraction = 2/3
 cutout.max_height_fraction = 2/3
 
+test_pipeline.shot_len = %shot_len
+test_pipeline.batch_size = 16
+
+parse_test_sample.frame_width = %frame_width
+parse_test_sample.frame_height = %frame_height
+
 
 # TransNet Config
 ##################
@@ -52,6 +75,9 @@ StackedDDCNNV2.shortcut = False
 DilatedDCNNV2.batch_norm = False
 
 Conv3DConfigurable.separable = False
+
+# affected by: TransNetV2.use_resnet_features
+ResNetFeatures.trainable = False
 
 # affected by: TransNetV2.use_frame_similarity
 FrameSimilarity.similarity_dim = 128

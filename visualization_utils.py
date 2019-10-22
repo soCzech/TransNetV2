@@ -64,3 +64,45 @@ def visualize_scenes(frames: np.ndarray, scenes: np.ndarray):
         curr_frm += 1
 
     return img
+
+
+def visualize_predictions(frame_sequence, one_hot_pred, one_hot_gt, many_hot_pred=None, many_hot_gt=None):
+    batch_size = len(frame_sequence)
+
+    images = []
+    for i in range(batch_size):
+        scene = frame_sequence[i]
+        scene_labels = one_hot_gt[i]
+        scene_one_hot_pred = one_hot_pred[i]
+        scene_many_hot_pred = many_hot_pred[i]
+
+        scene_len, ih, iw = scene.shape[1:3]
+
+        grid_width = max([i for i in range(int(scene_len ** .5), 0, -1) if scene_len % i == 0])
+        grid_height = scene_len // grid_width
+
+        scene = scene.reshape([grid_height, grid_width] + list(scene.shape[1:]))
+        scene = np.concatenate(np.split(
+            np.concatenate(np.split(scene, grid_height), axis=2)[0], grid_width
+        ), axis=2)[0]
+
+        img = Image.fromarray(scene).astype(np.uint8)
+        draw = ImageDraw.Draw(img)
+
+        j = 0
+        for h in range(grid_height):
+            for w in range(grid_width):
+                if scene_labels[j] == 1:
+                    draw.text((5 + w * iw, h * ih), "T", fill=(0, 255, 0))
+
+                draw.rectangle([(w * iw + iw - 1, h * ih), (w * iw + iw - 6, h * ih + ih - 1)], fill=(0, 0, 0))
+                draw.rectangle([(w * iw + iw - 4, h * ih),
+                                (w * iw + iw - 5, h * ih + (ih - 1) * scene_one_hot_pred[j])], fill=(0, 255, 0))
+                draw.rectangle([(w * iw + iw - 2, h * ih),
+                                (w * iw + iw - 3, h * ih + (ih - 1) * scene_many_hot_pred[j])], fill=(255, 255, 0))
+                j += 1
+
+        images.append(np.array(img))
+
+    images = np.stack(images, 0)
+    return images
