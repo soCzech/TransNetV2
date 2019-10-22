@@ -129,10 +129,11 @@ class Conv3DConfigurable(tf.keras.layers.Layer):
         return x
 
 
-class ResNetFeatures(tf.keras.Model):
+@gin.configurable(whitelist=["trainable"])
+class ResNetFeatures(tf.keras.layers.Layer):
 
-    def __init__(self, name="ResNetFeatures"):
-        super(ResNetFeatures, self).__init__(name=name)
+    def __init__(self, trainable=False, name="ResNetFeatures"):
+        super(ResNetFeatures, self).__init__(trainable=trainable, name=name)
 
         self.conv1 = tf.keras.layers.Conv2D(filters=64, kernel_size=(7, 7), strides=(2, 2),
                                             padding="SAME", use_bias=False, name="conv1")
@@ -146,6 +147,7 @@ class ResNetFeatures(tf.keras.Model):
         self.std = tf.constant(ResNet18.STD)
 
     def call(self, inputs, training=False):
+        training = training if self.trainable else False
         shape = tf.shape(inputs)
 
         x = tf.reshape(inputs, [shape[0] * shape[1], shape[2], shape[3], shape[4]])
