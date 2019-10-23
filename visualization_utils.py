@@ -76,7 +76,7 @@ def visualize_predictions(frame_sequence, one_hot_pred, one_hot_gt, many_hot_pre
         scene_one_hot_pred = one_hot_pred[i]
         scene_many_hot_pred = many_hot_pred[i]
 
-        scene_len, ih, iw = scene.shape[1:3]
+        scene_len, ih, iw = scene.shape[:3]
 
         grid_width = max([i for i in range(int(scene_len ** .5), 0, -1) if scene_len % i == 0])
         grid_height = scene_len // grid_width
@@ -86,7 +86,7 @@ def visualize_predictions(frame_sequence, one_hot_pred, one_hot_gt, many_hot_pre
             np.concatenate(np.split(scene, grid_height), axis=2)[0], grid_width
         ), axis=2)[0]
 
-        img = Image.fromarray(scene).astype(np.uint8)
+        img = Image.fromarray(scene.astype(np.uint8))
         draw = ImageDraw.Draw(img)
 
         j = 0
