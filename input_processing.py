@@ -11,14 +11,22 @@ def train_pipeline(filenames,
                    batch_size=16,
                    repeat=False):
     ds = tf.data.Dataset.from_tensor_slices(filenames)
-    ds = ds.interleave(lambda x: tf.data.TFRecordDataset(x).map(parse_train_sample, num_parallel_calls=1),
+    ds = ds.interleave(lambda x: tf.data.TFRecordDataset(x, compression_type="GZIP").map(parse_train_sample,
+                                                                                         num_parallel_calls=1),
                        cycle_length=8,
                        block_length=16,
                        num_parallel_calls=tf.data.experimental.AUTOTUNE)
     ds = ds.shuffle(shuffle_buffer)
-    ds = ds.padded_batch(2, [[shot_len, frame_height, frame_width, 3], []], drop_remainder=True)
+    ds = ds.padded_batch(2, ([shot_len, frame_height, frame_width, 3], []), drop_remainder=True)
     ds = ds.map(concat_shots, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-    ds = ds.filter(lambda *_, boolean: boolean).map(lambda *args: args[:-1])
+
+    def filter_(*args):
+        return args[-1]
+
+    def map_(*args):
+        return args[:-1]
+
+    ds = ds.filter(filter_).map(map_)
     ds = ds.batch(batch_size)
     if repeat:
         ds = ds.repeat()
@@ -32,13 +40,13 @@ def parse_train_sample(sample,
                        shot_len=None,
                        frame_width=48,
                        frame_height=27):
-    features = tf.parse_single_example(sample, features={
-        "scene": tf.FixedLenFeature([], tf.string),
-        "length": tf.FixedLenFeature([], tf.int64)
+    features = tf.io.parse_single_example(sample, features={
+        "scene": tf.io.FixedLenFeature([], tf.string),
+        "length": tf.io.FixedLenFeature([], tf.int64)
     })
     length = tf.cast(features["length"], tf.int32)
 
-    scene = tf.decode_raw(features["scene"], tf.uint8)
+    scene = tf.io.decode_raw(features["scene"], tf.uint8)
     scene = tf.reshape(scene, [length, frame_height, frame_width, 3])
 
     shot_start = tf.random.uniform([], minval=0, maxval=tf.maximum(1, length - shot_len), dtype=tf.int32)
@@ -47,7 +55,7 @@ def parse_train_sample(sample,
 
     scene = tf.cast(scene, dtype=tf.float32)
     scene = augment_shot(scene)
-    return scene  # [<SHOT_LENGTH, IMAGE_HEIGHT, IMAGE_WIDTH, 3]
+    return scene, tf.shape(scene)[0]  # [<SHOT_LENGTH, IMAGE_HEIGHT, IMAGE_WIDTH, 3]
 
 
 @tf.function
@@ -123,7 +131,7 @@ def concat_shots(shots,
     # add together two shots
     transition = tf.reshape(transition, [shot_len, 1, 1, 1])
 
-    many_hot_gt_indices = tf.where(many_hot_gt)
+    many_hot_gt_indices = tf.cast(tf.where(many_hot_gt), tf.int32)
     shot1_min_len = tf.reduce_max(many_hot_gt_indices)
     shot2_min_len = shot_len - tf.reduce_min(many_hot_gt_indices)
 
@@ -150,14 +158,15 @@ def cutout(shot,
            max_width_fraction=2/3,
            max_height_fraction=2/3):
     frame_height, frame_width = tf.shape(shot)[1], tf.shape(shot)[2]
+    frame_height_float, frame_width_float = tf.cast(frame_height, tf.float32), tf.cast(frame_width, tf.float32)
 
     height = tf.random.uniform([],
-                               tf.cast(frame_height * min_height_fraction, tf.int32),
-                               tf.cast(frame_height * max_height_fraction, tf.int32),
+                               tf.cast(frame_height_float * min_height_fraction, tf.int32),
+                               tf.cast(frame_height_float * max_height_fraction, tf.int32),
                                tf.int32)
     width = tf.random.uniform([],
-                              tf.cast(frame_width * min_width_fraction, tf.int32),
-                              tf.cast(frame_width * max_width_fraction, tf.int32),
+                              tf.cast(frame_width_float * min_width_fraction, tf.int32),
+                              tf.cast(frame_width_float * max_width_fraction, tf.int32),
                               tf.int32)
 
     left = tf.random.uniform([], 0, frame_width - width, tf.int32)
@@ -168,8 +177,10 @@ def cutout(shot,
 
     t = tf.random.uniform([1, height, width, 3], 0, 255., dtype=tf.float32)
 
-    img = tf.pad(t, [[0, 0], [top, frame_height - bottom], [left, frame_width - right], [0, 0]])
-    return tf.clip_by_value(img + shot, 0., 255.)
+    random_patch = tf.pad(t, [[0, 0], [top, frame_height - bottom], [left, frame_width - right], [0, 0]])
+    mask = tf.pad(tf.zeros([1, height, width, 1]),
+                  [[0, 0], [top, frame_height - bottom], [left, frame_width - right], [0, 0]], constant_values=1.)
+    return random_patch + shot * mask
 
 
 @tf.function
@@ -180,10 +191,14 @@ def color_transfer(source, target, name="color_transfer"):
         source = rgb_to_lab(source)
         target = rgb_to_lab(target)
 
-        src_mean, src_var = tf.nn.moments(source, axes=(0, 1, 2), keep_dims=True)
+        src_mean, src_var = tf.nn.moments(source, axes=(0, 1, 2), keepdims=True)
         src_std = tf.sqrt(src_var)
-        tar_mean, tar_var = tf.nn.moments(target, axes=(0, 1, 2), keep_dims=True)
+        tar_mean, tar_var = tf.nn.moments(target, axes=(0, 1, 2), keepdims=True)
         tar_std = tf.sqrt(tar_var)
+
+        # ensure reasonable scaling and prevent division by zero
+        src_std = tf.maximum(src_std, 1)
+        tar_std = tf.maximum(tar_std, 1)
 
         target_shifted = (target - tar_mean) * (src_std / tar_std) + src_mean
 
@@ -199,7 +214,7 @@ def rgb_to_lab(rgb):
         srgb_pixels = tf.reshape(rgb, [-1, 3]) / 255.
         with tf.name_scope("srgb_to_xyz"):
             linear_mask = tf.cast(srgb_pixels <= 0.04045, dtype=tf.float32)
-            exponential_mask = tf.cast(srgb_pixels > 0.04045, dtype=tf.float32)
+            exponential_mask = 1 - linear_mask
             rgb_pixels = (srgb_pixels / 12.92 * linear_mask) + (((srgb_pixels + 0.055) / 1.055) ** 2.4) * exponential_mask
             rgb_to_xyz = tf.constant([
                 #    X        Y          Z
@@ -214,11 +229,13 @@ def rgb_to_lab(rgb):
             # convert to fx = f(X/Xn), fy = f(Y/Yn), fz = f(Z/Zn)
 
             # normalize for D65 white point
-            xyz_normalized_pixels = tf.multiply(xyz_pixels, [1/0.950456, 1.0, 1/1.088754])
+            xyz_normalized_pixels = tf.multiply(xyz_pixels, tf.constant([[1/0.950456, 1.0, 1/1.088754]], tf.float32))
+            # fix when values -0.0001 result in Nan if raised to 1/3
+            xyz_normalized_pixels = tf.maximum(xyz_normalized_pixels, 0)
 
             epsilon = 6/29
             linear_mask = tf.cast(xyz_normalized_pixels <= (epsilon**3), dtype=tf.float32)
-            exponential_mask = tf.cast(xyz_normalized_pixels > (epsilon**3), dtype=tf.float32)
+            exponential_mask = 1 - linear_mask
             fxfyfz_pixels = (xyz_normalized_pixels / (3 * epsilon**2) + 4/29) * linear_mask + (xyz_normalized_pixels ** (1/3)) * exponential_mask
 
             # convert to lab
@@ -250,7 +267,7 @@ def lab_to_rgb(lab):
             # convert to xyz
             epsilon = 6/29
             linear_mask = tf.cast(fxfyfz_pixels <= epsilon, dtype=tf.float32)
-            exponential_mask = tf.cast(fxfyfz_pixels > epsilon, dtype=tf.float32)
+            exponential_mask = 1 - linear_mask
             xyz_pixels = (3 * epsilon**2 * (fxfyfz_pixels - 4/29)) * linear_mask + (fxfyfz_pixels ** 3) * exponential_mask
 
             # denormalize for D65 white point
@@ -267,7 +284,7 @@ def lab_to_rgb(lab):
             # avoid a slightly negative number messing up the conversion
             rgb_pixels = tf.clip_by_value(rgb_pixels, 0.0, 1.0)
             linear_mask = tf.cast(rgb_pixels <= 0.0031308, dtype=tf.float32)
-            exponential_mask = tf.cast(rgb_pixels > 0.0031308, dtype=tf.float32)
+            exponential_mask = 1 - linear_mask
             rgb_pixels = (rgb_pixels * 12.92 * linear_mask) + ((rgb_pixels ** (1/2.4) * 1.055) - 0.055) * exponential_mask
 
         return tf.reshape(rgb_pixels, tf.shape(lab)) * 255.
@@ -277,7 +294,7 @@ def lab_to_rgb(lab):
 def test_pipeline(filenames,
                   shot_len=100,
                   batch_size=16):
-    ds = tf.data.TFRecordDataset(filenames)
+    ds = tf.data.TFRecordDataset(filenames, compression_type="GZIP")
     ds = ds.map(parse_test_sample, num_parallel_calls=tf.data.experimental.AUTOTUNE)
     ds = ds.batch(shot_len, drop_remainder=True)
     ds = ds.batch(batch_size)
@@ -290,13 +307,13 @@ def test_pipeline(filenames,
 def parse_test_sample(sample,
                       frame_width=48,
                       frame_height=27):
-    features = tf.parse_single_example(sample, features={
-        "frame": tf.FixedLenFeature([], tf.string),
-        "is_one_hot_transition": tf.FixedLenFeature([], tf.int64),
-        "is_many_hot_transition": tf.FixedLenFeature([], tf.int64)
+    features = tf.io.parse_single_example(sample, features={
+        "frame": tf.io.FixedLenFeature([], tf.string),
+        "is_one_hot_transition": tf.io.FixedLenFeature([], tf.int64),
+        "is_many_hot_transition": tf.io.FixedLenFeature([], tf.int64)
     })
 
-    frame = tf.decode_raw(features["frame"], tf.uint8)
+    frame = tf.io.decode_raw(features["frame"], tf.uint8)
     frame = tf.reshape(frame, [frame_height, frame_width, 3])
 
     one_hot = tf.cast(features["is_one_hot_transition"], tf.int32)
