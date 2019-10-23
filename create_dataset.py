@@ -42,8 +42,9 @@ def scenes2zero_one_representation(scenes, n_frames):
         # [0][x][x]|[x][4] -> 2
         # [0][x][x]|[x][x][5] -> 2
         # ...
-        one_hot_index = prev_end + (start - prev_end) // 2
-        one_hot[one_hot_index] = 1
+        if not (prev_end == 0 and start == 0):
+            one_hot_index = prev_end + (start - prev_end) // 2
+            one_hot[one_hot_index] = 1
 
         prev_end = end
 

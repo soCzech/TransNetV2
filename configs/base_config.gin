@@ -42,6 +42,7 @@ augment_shot.adjust_hue = True
 
 concat_shots.shot_len = %shot_len
 concat_shots.color_transfer_prob = 0.3
+concat_shots.transition_min_len = 2
 concat_shots.transition_max_len = 60
 concat_shots.hard_cut_prob = 0.4
 concat_shots.cutout_prob = 0.3

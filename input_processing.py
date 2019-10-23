@@ -91,9 +91,11 @@ def concat_shots(shots,
                  lens,
                  shot_len=None,
                  color_transfer_prob=0.3,
+                 transition_min_len=2,
                  transition_max_len=60,
                  hard_cut_prob=0.4,
                  cutout_prob=0.3):
+    assert transition_min_len % 2 == 0 and transition_min_len >= 2, "`transition_min_len` must be even"
     assert transition_max_len % 2 == 0, "`transition_max_len` must be even"
     shot1 = shots[0][:lens[0]]
     shot2 = shots[1][:lens[1]]
@@ -110,7 +112,8 @@ def concat_shots(shots,
     hard_cut = tf.cast(tf.range(shot_len) <= transition_boundary, dtype=tf.float32)
 
     # dissolve
-    dis_len = tf.random.uniform([], minval=2, maxval=(transition_max_len // 2) + 1, dtype=tf.int32)
+    dis_len = tf.random.uniform([], minval=transition_min_len // 2,
+                                maxval=(transition_max_len // 2) + 1, dtype=tf.int32)
     dis_kernel = tf.linspace(1., 0., dis_len * 2 + 2)[1:-1]
     dis_left_win = tf.minimum(dis_len - 1, transition_boundary)
     dis_right_win = tf.minimum(dis_len, (shot_len - 1) - transition_boundary)
@@ -295,7 +298,8 @@ def test_pipeline(filenames,
                   shot_len=100,
                   batch_size=16):
     ds = tf.data.TFRecordDataset(filenames, compression_type="GZIP")
-    ds = ds.map(parse_test_sample, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    # num_parallel_calls must be ONE! since frames are sequentially in the dataset
+    ds = ds.map(parse_test_sample, num_parallel_calls=1)
     ds = ds.batch(shot_len, drop_remainder=True)
     ds = ds.batch(batch_size)
     ds = ds.prefetch(2)
