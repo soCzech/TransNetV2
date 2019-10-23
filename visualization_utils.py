@@ -74,7 +74,7 @@ def visualize_predictions(frame_sequence, one_hot_pred, one_hot_gt, many_hot_pre
         scene = frame_sequence[i]
         scene_labels = one_hot_gt[i]
         scene_one_hot_pred = one_hot_pred[i]
-        scene_many_hot_pred = many_hot_pred[i]
+        scene_many_hot_pred = many_hot_pred[i] if many_hot_pred is not None else None
 
         scene_len, ih, iw = scene.shape[:3]
 
@@ -99,7 +99,9 @@ def visualize_predictions(frame_sequence, one_hot_pred, one_hot_gt, many_hot_pre
                 draw.rectangle([(w * iw + iw - 4, h * ih),
                                 (w * iw + iw - 5, h * ih + (ih - 1) * scene_one_hot_pred[j])], fill=(0, 255, 0))
                 draw.rectangle([(w * iw + iw - 2, h * ih),
-                                (w * iw + iw - 3, h * ih + (ih - 1) * scene_many_hot_pred[j])], fill=(255, 255, 0))
+                                (w * iw + iw - 3, h * ih + (ih - 1) * (
+                                    scene_many_hot_pred[j] if scene_many_hot_pred is not None else 0
+                                ))], fill=(255, 255, 0))
                 j += 1
 
         images.append(np.array(img))

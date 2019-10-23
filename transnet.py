@@ -75,10 +75,10 @@ class DilatedDCNNV2(tf.keras.layers.Layer):
     def __init__(self, filters, batch_norm=False, activation=None, name="DilatedDCNN"):
         super(DilatedDCNNV2, self).__init__(name=name)
 
-        self.conv1 = self.Conv3DConfigurable(filters, 1, use_bias=not batch_norm, name="Conv3D_1")
-        self.conv2 = self.Conv3DConfigurable(filters, 2, use_bias=not batch_norm, name="Conv3D_2")
-        self.conv3 = self.Conv3DConfigurable(filters, 4, use_bias=not batch_norm, name="Conv3D_4")
-        self.conv4 = self.Conv3DConfigurable(filters, 8, use_bias=not batch_norm, name="Conv3D_8")
+        self.conv1 = Conv3DConfigurable(filters, 1, use_bias=not batch_norm, name="Conv3D_1")
+        self.conv2 = Conv3DConfigurable(filters, 2, use_bias=not batch_norm, name="Conv3D_2")
+        self.conv3 = Conv3DConfigurable(filters, 4, use_bias=not batch_norm, name="Conv3D_4")
+        self.conv4 = Conv3DConfigurable(filters, 8, use_bias=not batch_norm, name="Conv3D_8")
 
         self.batch_norm = tf.keras.layers.BatchNormalization(name="bn") if batch_norm else None
         self.activation = activation

@@ -36,7 +36,7 @@ def get_options_dict(n_epochs=gin.REQUIRED,
 
     with summary_writer.as_default():
         tf.summary.text("config", config_str, step=0)
-    with open(os.path.join(log_dir, "config.gin"), "r") as f:
+    with open(os.path.join(log_dir, "config.gin"), "w") as f:
         f.write(config_str)
 
     return {
@@ -57,7 +57,7 @@ class Trainer:
                  grad_clipping=10.):
         self.net = net
         self.summary_writer = summary_writer
-        self.optimizer = optimizer
+        self.optimizer = optimizer()
         self.log_freq = log_freq
         self.grad_clipping = grad_clipping
         self.mean_metrics = dict([(name, tf.keras.metrics.Mean(name=name, dtype=tf.float32)) for name in
@@ -70,7 +70,8 @@ class Trainer:
                      l2_loss_weight=0.):
 
         with tf.name_scope("losses"):
-            one_hot_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=one_hot_pred, labels=one_hot_gt)
+            one_hot_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=one_hot_pred[:, :, 0],
+                                                                   labels=tf.cast(one_hot_gt, tf.float32))
             if transition_weight != 1:
                 one_hot_loss *= 1 + tf.cast(one_hot_gt, tf.float32) * (transition_weight - 1)
             one_hot_loss = tf.reduce_mean(one_hot_loss)
@@ -78,7 +79,8 @@ class Trainer:
             many_hot_loss = 0.
             if many_hot_loss_weight != 0. and many_hot_pred is not None:
                 many_hot_loss = many_hot_loss_weight * tf.reduce_mean(
-                    tf.nn.sigmoid_cross_entropy_with_logits(logits=many_hot_pred, labels=many_hot_gt))
+                    tf.nn.sigmoid_cross_entropy_with_logits(logits=many_hot_pred[:, :, 0],
+                                                            labels=tf.cast(many_hot_gt, tf.float32)))
 
             l2_loss = 0.
             if l2_loss_weight != 0.:
@@ -102,13 +104,13 @@ class Trainer:
             total_loss, losses_dict = self.compute_loss(one_hot_pred, one_hot_gt,
                                                         many_hot_pred, many_hot_gt)
 
-        grads = tape.gradient(total_loss, net.trainable_weights)
+        grads = tape.gradient(total_loss, self.net.trainable_weights)
         with tf.name_scope("grad_check"):
             grads = [
                 tf.where(tf.math.is_nan(g), tf.zeros_like(g), g)
                 for g in grads]
             grads, grad_norm = tf.clip_by_global_norm(grads, self.grad_clipping)
-        self.optimizer.apply_gradients(zip(grads, net.trainable_weights))
+        self.optimizer.apply_gradients(zip(grads, self.net.trainable_weights))
 
         for loss_name, loss_value in losses_dict.items():
             self.mean_metrics[loss_name].update_state(loss_value)
@@ -137,16 +139,17 @@ class Trainer:
 
         for i, (frame_sequence, one_hot_gt, many_hot_gt) in dataset.enumerate():
             if i % self.log_freq == 0:
-                one_hot_pred, many_hot_pred, step = self.run_batch(
+                one_hot_pred, many_hot_pred, step = self.train_batch(
                     frame_sequence, one_hot_gt, many_hot_gt, run_summaries=True)
 
                 with self.summary_writer.as_default():
                     visualizations = visualization_utils.visualize_predictions(
-                        frame_sequence, one_hot_pred, one_hot_gt, many_hot_pred, many_hot_gt)
+                        frame_sequence.numpy(), one_hot_pred.numpy(), one_hot_gt.numpy(),
+                        many_hot_pred.numpy() if many_hot_pred is not None else None, many_hot_gt.numpy())
                     tf.summary.image("train/visualization", visualizations, step=step)
             else:
-                self.run_batch(frame_sequence, one_hot_gt, many_hot_gt, run_summaries=False)
-            print("\r", i, end="")
+                self.train_batch(frame_sequence, one_hot_gt, many_hot_gt, run_summaries=False)
+            print("\r", i.numpy(), end="")
 
     @tf.function(autograph=False)
     def test_batch(self, frame_sequence, one_hot_gt, many_hot_gt):
@@ -174,16 +177,17 @@ class Trainer:
             for i, (frame_sequence, one_hot_gt, many_hot_gt) in dataset.enumerate():
                 one_hot_pred, many_hot_pred = self.test_batch(frame_sequence, one_hot_gt, many_hot_gt)
 
-                one_hot_gt_list.extend(one_hot_gt.fatten().tolist())
-                one_hot_pred_list.extend(one_hot_pred.fatten().tolist())
+                one_hot_gt_list.extend(one_hot_gt.numpy().flatten().tolist())
+                one_hot_pred_list.extend(one_hot_pred.numpy().flatten().tolist())
 
-                print("\r", i, end="")
+                print("\r", i.numpy(), end="")
                 if i != 0 or save_visualization_to is None:
                     continue
 
                 with self.summary_writer.as_default():
                     visualizations = visualization_utils.visualize_predictions(
-                        frame_sequence, one_hot_pred, one_hot_gt, many_hot_pred, many_hot_gt)
+                        frame_sequence.numpy(), one_hot_pred.numpy(), one_hot_gt.numpy(),
+                        many_hot_pred.numpy() if many_hot_pred is not None else None, many_hot_gt.numpy())
                     tf.summary.image("test/{}/visualization".format(ds_name), visualizations, step=epoch_no)
 
                     for idx, img in enumerate(visualizations):
@@ -211,7 +215,7 @@ if __name__ == "__main__":
               for name, files in options["tst_files"].items()]
 
     net = transnet.TransNetV2()
-    trainer = Trainer(net, options["summary_writer"], options["log_dir"])
+    trainer = Trainer(net, options["summary_writer"])
 
     for epoch in range(1, options["n_epochs"] + 1):
         trainer.train_epoch(trn_ds)
