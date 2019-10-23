@@ -66,8 +66,8 @@ def create_test_tfrecord(video_fn, scenes_fn, target_fn, width, height):
     scenes = np.loadtxt(scenes_fn, dtype=np.int32, ndmin=2)
     one_hot, many_hot = scenes2zero_one_representation(scenes, n_frames)
 
-    options = tf.python_io.TFRecordOptions(tf.python_io.TFRecordCompressionType.GZIP)
-    with tf.python_io.TFRecordWriter(target_fn, options) as writer:
+    options = tf.io.TFRecordOptions(compression_type="GZIP")
+    with tf.io.TFRecordWriter(target_fn, options) as writer:
         for frame_idx in range(n_frames):
             example = tf.train.Example(features=tf.train.Features(feature={
                 "frame": _bytes_feature(frames[frame_idx].tobytes("C")),
@@ -129,8 +129,8 @@ def create_train_dataset(target_dir, target_fn, mapping_fn, width, height, n_vid
 
         random.shuffle(tfrecord_scenes)
 
-        options = tf.python_io.TFRecordOptions(tf.python_io.TFRecordCompressionType.GZIP)
-        with tf.python_io.TFRecordWriter(
+        options = tf.io.TFRecordOptions(compression_type="GZIP")
+        with tf.io.TFRecordWriter(
                 os.path.join(target_dir, "{}-{:04d}.tfrecord".format(target_fn, start_idx)), options) as writer:
             for scene in tfrecord_scenes:
                 example = tf.train.Example(features=tf.train.Features(feature={
