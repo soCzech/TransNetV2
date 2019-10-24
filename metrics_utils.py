@@ -13,7 +13,7 @@ def predictions_to_scenes(predictions):
         if t_prev == 0 and t == 1 and i != 0:
             scenes.append([start, i])
         t_prev = t
-    if t == 0 or t == -1:
+    if t == 0:
         scenes.append([start, i])
     return np.array(scenes, dtype=np.int32)
 

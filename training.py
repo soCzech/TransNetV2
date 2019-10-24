@@ -17,7 +17,10 @@ import visualization_utils
 def get_options_dict(n_epochs=gin.REQUIRED,
                      log_dir=gin.REQUIRED,
                      trn_files=gin.REQUIRED,
-                     tst_files=gin.REQUIRED):
+                     tst_files=gin.REQUIRED,
+                     input_shape=gin.REQUIRED,
+                     test_only=False,
+                     restore=None):
     trn_files_ = []
     for fn in trn_files:
         trn_files_.extend(glob.glob(fn))
@@ -45,6 +48,9 @@ def get_options_dict(n_epochs=gin.REQUIRED,
         "summary_writer": summary_writer,
         "trn_files": trn_files_,
         "tst_files": tst_files_,
+        "input_shape": input_shape,
+        "test_only": test_only,
+        "restore": restore
     }
 
 
@@ -57,7 +63,7 @@ class Trainer:
                  grad_clipping=10.):
         self.net = net
         self.summary_writer = summary_writer
-        self.optimizer = optimizer()
+        self.optimizer = optimizer() if optimizer is not None else None
         self.log_freq = log_freq
         self.grad_clipping = grad_clipping
         self.mean_metrics = dict([(name, tf.keras.metrics.Mean(name=name, dtype=tf.float32)) for name in
@@ -144,8 +150,8 @@ class Trainer:
 
                 with self.summary_writer.as_default():
                     visualizations = visualization_utils.visualize_predictions(
-                        frame_sequence.numpy(), one_hot_pred.numpy(), one_hot_gt.numpy(),
-                        many_hot_pred.numpy() if many_hot_pred is not None else None, many_hot_gt.numpy())
+                        frame_sequence.numpy(), tf.sigmoid(one_hot_pred).numpy(), one_hot_gt.numpy(),
+                        tf.sigmoid(many_hot_pred).numpy() if many_hot_pred is not None else None, many_hot_gt.numpy())
                     tf.summary.image("train/visualization", visualizations, step=step)
             else:
                 self.train_batch(frame_sequence, one_hot_gt, many_hot_gt, run_summaries=False)
@@ -166,7 +172,7 @@ class Trainer:
 
         return one_hot_pred, many_hot_pred
 
-    def test_epoch(self, datasets, epoch_no, save_visualization_to=None):
+    def test_epoch(self, datasets, epoch_no, save_visualization_to=None, trace=False):
         for metric in self.mean_metrics.values():
             metric.reset_states()
 
@@ -175,10 +181,16 @@ class Trainer:
             one_hot_gt_list, one_hot_pred_list = [], []
 
             for i, (frame_sequence, one_hot_gt, many_hot_gt) in dataset.enumerate():
+                if trace:
+                    tf.summary.trace_on(graph=True, profiler=False)
                 one_hot_pred, many_hot_pred = self.test_batch(frame_sequence, one_hot_gt, many_hot_gt)
+                with self.summary_writer.as_default():
+                    if trace:
+                        tf.summary.trace_export(name="graph", step=0)
+                        trace = False
 
                 one_hot_gt_list.extend(one_hot_gt.numpy().flatten().tolist())
-                one_hot_pred_list.extend(one_hot_pred.numpy().flatten().tolist())
+                one_hot_pred_list.extend(tf.sigmoid(one_hot_pred).numpy().flatten().tolist())
 
                 print("\r", i.numpy(), end="")
                 if i != 0 or save_visualization_to is None:
@@ -186,8 +198,8 @@ class Trainer:
 
                 with self.summary_writer.as_default():
                     visualizations = visualization_utils.visualize_predictions(
-                        frame_sequence.numpy(), one_hot_pred.numpy(), one_hot_gt.numpy(),
-                        many_hot_pred.numpy() if many_hot_pred is not None else None, many_hot_gt.numpy())
+                        frame_sequence.numpy(), tf.sigmoid(one_hot_pred).numpy(), one_hot_gt.numpy(),
+                        tf.sigmoid(many_hot_pred).numpy() if many_hot_pred is not None else None, many_hot_gt.numpy())
                     tf.summary.image("test/{}/visualization".format(ds_name), visualizations, step=epoch_no)
 
                     for idx, img in enumerate(visualizations):
@@ -195,9 +207,9 @@ class Trainer:
 
             with self.summary_writer.as_default():
                 for loss_name, loss in self.mean_metrics.items():
-                    tf.summary.scalar("test/{}/{}".format(ds_name, loss_name), loss.result(), step=self.eppoch_no)
+                    tf.summary.scalar("test/{}/{}".format(ds_name, loss_name), loss.result(), step=epoch_no)
 
-                metrics_utils.create_scene_based_summaries(one_hot_gt_list, one_hot_pred_list,
+                metrics_utils.create_scene_based_summaries(one_hot_pred_list, one_hot_gt_list,
                                                            prefix="test/" + ds_name, step=epoch_no)
 
 
@@ -207,7 +219,7 @@ if __name__ == "__main__":
     parser.add_argument("config", help="path to config")
     args = parser.parse_args()
 
-    gin.parse_config_file(args.c)
+    gin.parse_config_file(args.config)
     options = get_options_dict()
 
     trn_ds = input_processing.train_pipeline(options["trn_files"])
@@ -215,10 +227,20 @@ if __name__ == "__main__":
               for name, files in options["tst_files"].items()]
 
     net = transnet.TransNetV2()
+    net(tf.zeros([1] + options["input_shape"], tf.float32))
+
     trainer = Trainer(net, options["summary_writer"])
+
+    if options["restore"] is not None:
+        net.load_weights(options["restore"], by_name=True)
+
+    if options["test_only"]:
+        trainer.test_epoch(tst_ds, 0, os.path.join(options["log_dir"], "visualization-00"), trace=True)
+        exit()
 
     for epoch in range(1, options["n_epochs"] + 1):
         trainer.train_epoch(trn_ds)
         net.save_weights(os.path.join(options["log_dir"], "weights-{}.h5".format(epoch)))
 
-        trainer.test_epoch(tst_ds, epoch, os.path.join(options["log_dir"], "visualization-{:02d}".format(epoch)))
+        trainer.test_epoch(tst_ds, epoch, os.path.join(options["log_dir"], "visualization-{:02d}".format(epoch)),
+                           trace=epoch == 1)

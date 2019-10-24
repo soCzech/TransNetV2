@@ -297,10 +297,14 @@ def lab_to_rgb(lab):
 def test_pipeline(filenames,
                   shot_len=100,
                   batch_size=16):
-    ds = tf.data.TFRecordDataset(filenames, compression_type="GZIP")
-    # num_parallel_calls must be ONE! since frames are sequentially in the dataset
-    ds = ds.map(parse_test_sample, num_parallel_calls=1)
-    ds = ds.batch(shot_len, drop_remainder=True)
+    ds = tf.data.Dataset.from_tensor_slices(filenames)
+    ds = ds.interleave(
+        lambda x: tf.data.TFRecordDataset(
+            x, compression_type="GZIP").map(parse_test_sample,
+                                            num_parallel_calls=1).batch(shot_len, drop_remainder=True),
+        cycle_length=8,
+        block_length=16,
+        num_parallel_calls=tf.data.experimental.AUTOTUNE)
     ds = ds.batch(batch_size)
     ds = ds.prefetch(2)
     return ds
