@@ -105,6 +105,7 @@ def graph(data, labels=None, marker=""):
     data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep="")
 
     width, height = fig.canvas.get_width_height()
+    fig.close()
     return data.reshape([height, width, 3])
 
 

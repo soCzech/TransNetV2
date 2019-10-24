@@ -15,10 +15,9 @@ def get_scenes_from_transition_frames(transition_frames, video_len):
     scenes = []
 
     for curr_frame in transition_frames:
-        if prev_idx + 1 == curr_frame:
-            scene_start = curr_frame
-        else:
+        if prev_idx + 1 != curr_frame:
             scenes.append((scene_start, curr_frame))
+        scene_start = curr_frame + 1
         prev_idx = curr_frame
 
     if curr_frame != video_len - 1:
