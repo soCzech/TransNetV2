@@ -7,6 +7,7 @@ from PIL import Image
 import tensorflow as tf
 import gin.tf.external_configurables
 
+import models
 import transnet
 import metrics_utils
 import input_processing
@@ -16,12 +17,14 @@ import visualization_utils
 @gin.configurable("options")
 def get_options_dict(n_epochs=gin.REQUIRED,
                      log_dir=gin.REQUIRED,
+                     log_name=gin.REQUIRED,
                      trn_files=gin.REQUIRED,
                      tst_files=gin.REQUIRED,
                      input_shape=gin.REQUIRED,
                      test_only=False,
                      restore=None,
-                     restore_resnet_features=None):
+                     restore_resnet_features=None,
+                     original_transnet=False):
     trn_files_ = []
     for fn in trn_files:
         trn_files_.extend(glob.glob(fn))
@@ -32,7 +35,7 @@ def get_options_dict(n_epochs=gin.REQUIRED,
         for fn in v:
             tst_files_[k].extend(glob.glob(fn))
 
-    log_dir = os.path.join(log_dir, datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S"))
+    log_dir = os.path.join(log_dir, log_name + "_" + datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S"))
     summary_writer = tf.summary.create_file_writer(log_dir)
 
     config_str = gin.config_str().replace("# ", "### ").split("\n")
@@ -52,7 +55,8 @@ def get_options_dict(n_epochs=gin.REQUIRED,
         "input_shape": input_shape,
         "test_only": test_only,
         "restore": restore,
-        "restore_resnet_features": restore_resnet_features
+        "restore_resnet_features": restore_resnet_features,
+        "original_transnet": original_transnet
     }
 
 
@@ -140,7 +144,7 @@ class Trainer:
 
         return one_hot_pred, many_hot_pred, self.optimizer.iterations
 
-    def train_epoch(self, dataset):
+    def train_epoch(self, dataset, logit_fc=tf.sigmoid):
         print("Training")
         for metric in self.mean_metrics.values():
             metric.reset_states()
@@ -152,8 +156,8 @@ class Trainer:
 
                 with self.summary_writer.as_default():
                     visualizations = visualization_utils.visualize_predictions(
-                        frame_sequence.numpy(), tf.sigmoid(one_hot_pred).numpy(), one_hot_gt.numpy(),
-                        tf.sigmoid(many_hot_pred).numpy() if many_hot_pred is not None else None, many_hot_gt.numpy())
+                        frame_sequence.numpy(), logit_fc(one_hot_pred).numpy(), one_hot_gt.numpy(),
+                        logit_fc(many_hot_pred).numpy() if many_hot_pred is not None else None, many_hot_gt.numpy())
                     tf.summary.image("train/visualization", visualizations, step=step)
             else:
                 self.train_batch(frame_sequence, one_hot_gt, many_hot_gt, run_summaries=False)
@@ -174,7 +178,7 @@ class Trainer:
 
         return one_hot_pred, many_hot_pred
 
-    def test_epoch(self, datasets, epoch_no, save_visualization_to=None, trace=False):
+    def test_epoch(self, datasets, epoch_no, save_visualization_to=None, trace=False, logit_fc=tf.sigmoid):
         for metric in self.mean_metrics.values():
             metric.reset_states()
 
@@ -192,7 +196,7 @@ class Trainer:
                         trace = False
 
                 one_hot_gt_list.extend(one_hot_gt.numpy().flatten().tolist())
-                one_hot_pred_list.extend(tf.sigmoid(one_hot_pred).numpy().flatten().tolist())
+                one_hot_pred_list.extend(logit_fc(one_hot_pred).numpy().flatten().tolist())
 
                 print("\r", i.numpy(), end="")
                 if i != 0 or save_visualization_to is None:
@@ -200,8 +204,8 @@ class Trainer:
 
                 with self.summary_writer.as_default():
                     visualizations = visualization_utils.visualize_predictions(
-                        frame_sequence.numpy(), tf.sigmoid(one_hot_pred).numpy(), one_hot_gt.numpy(),
-                        tf.sigmoid(many_hot_pred).numpy() if many_hot_pred is not None else None, many_hot_gt.numpy())
+                        frame_sequence.numpy(), logit_fc(one_hot_pred).numpy(), one_hot_gt.numpy(),
+                        logit_fc(many_hot_pred).numpy() if many_hot_pred is not None else None, many_hot_gt.numpy())
                     tf.summary.image("test/{}/visualization".format(ds_name), visualizations, step=epoch_no)
 
                     for idx, img in enumerate(visualizations):
@@ -228,9 +232,14 @@ if __name__ == "__main__":
     tst_ds = [(name, input_processing.test_pipeline(files))
               for name, files in options["tst_files"].items()]
 
-    net = transnet.TransNetV2()
-    net(tf.zeros([1] + options["input_shape"], tf.float32))
+    if options["original_transnet"]:
+        net = models.OriginalTransNet()
+        logit_fc = lambda x: tf.nn.softmax(x)[:, :, 1]
+    else:
+        net = transnet.TransNetV2()
+        logit_fc = tf.sigmoid
 
+    net(tf.zeros([1] + options["input_shape"], tf.float32))
     trainer = Trainer(net, options["summary_writer"])
 
     if options["restore_resnet_features"] is not None:
@@ -242,12 +251,13 @@ if __name__ == "__main__":
         print("Weights restored from", options["restore"])
 
     if options["test_only"]:
-        trainer.test_epoch(tst_ds, 0, os.path.join(options["log_dir"], "visualization-00"), trace=True)
+        trainer.test_epoch(tst_ds, 0, os.path.join(options["log_dir"], "visualization-00"), trace=True,
+                           logit_fc=logit_fc)
         exit()
 
     for epoch in range(1, options["n_epochs"] + 1):
-        trainer.train_epoch(trn_ds)
+        trainer.train_epoch(trn_ds, logit_fc=logit_fc)
         net.save_weights(os.path.join(options["log_dir"], "weights-{}.h5".format(epoch)))
 
         trainer.test_epoch(tst_ds, epoch, os.path.join(options["log_dir"], "visualization-{:02d}".format(epoch)),
-                           trace=epoch == 1)
+                           trace=epoch == 1, logit_fc=logit_fc)

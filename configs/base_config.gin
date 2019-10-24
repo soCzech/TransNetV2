@@ -1,18 +1,20 @@
 # Global Config
 ################
 
-shot_len = 10
+shot_len = 100
 frame_width = 48
 frame_height = 27
 
 options.n_epochs = 5
 options.log_dir = "logs"
+options.log_name = "test"
 options.trn_files = ["/glob/path/*.tfrecord"]
 options.tst_files = {"name": ["/glob/path/*.tfrecord"]}
 options.input_shape = [%shot_len, %frame_height, %frame_width, 3]
 options.test_only = False
 options.restore = None
 options.restore_resnet_features = None
+options.original_transnet = False
 
 training.optimizer = @tf.keras.optimizers.Adam
 training.log_freq = 200
