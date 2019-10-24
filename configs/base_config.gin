@@ -1,10 +1,18 @@
 # Global Config
 ################
 
+shot_len = 10
+frame_width = 48
+frame_height = 27
+
 options.n_epochs = 5
 options.log_dir = "logs"
 options.trn_files = ["/glob/path/*.tfrecord"]
 options.tst_files = {"name": ["/glob/path/*.tfrecord"]}
+options.input_shape = [%shot_len, %frame_height, %frame_width, 3]
+options.test_only = False
+options.restore = None
+options.restore_resnet_features = None
 
 training.optimizer = @tf.keras.optimizers.Adam
 training.log_freq = 200
@@ -17,10 +25,6 @@ loss.l2_loss_weight = 0.
 
 # Dataset Config
 #################
-
-shot_len = 100
-frame_width = 48
-frame_height = 27
 
 train_pipeline.shuffle_buffer = 100
 train_pipeline.shot_len = %shot_len

@@ -20,7 +20,8 @@ def get_options_dict(n_epochs=gin.REQUIRED,
                      tst_files=gin.REQUIRED,
                      input_shape=gin.REQUIRED,
                      test_only=False,
-                     restore=None):
+                     restore=None,
+                     restore_resnet_features=None):
     trn_files_ = []
     for fn in trn_files:
         trn_files_.extend(glob.glob(fn))
@@ -50,7 +51,8 @@ def get_options_dict(n_epochs=gin.REQUIRED,
         "tst_files": tst_files_,
         "input_shape": input_shape,
         "test_only": test_only,
-        "restore": restore
+        "restore": restore,
+        "restore_resnet_features": restore_resnet_features
     }
 
 
@@ -104,7 +106,7 @@ class Trainer:
         with tf.GradientTape() as tape:
             one_hot_pred = self.net(frame_sequence)
             many_hot_pred = None
-            if isinstance(one_hot_gt, tuple):
+            if isinstance(one_hot_pred, tuple):
                 one_hot_pred, many_hot_pred = one_hot_pred
 
             total_loss, losses_dict = self.compute_loss(one_hot_pred, one_hot_gt,
@@ -161,7 +163,7 @@ class Trainer:
     def test_batch(self, frame_sequence, one_hot_gt, many_hot_gt):
         one_hot_pred = self.net(frame_sequence)
         many_hot_pred = None
-        if isinstance(one_hot_gt, tuple):
+        if isinstance(one_hot_pred, tuple):
             one_hot_pred, many_hot_pred = one_hot_pred
 
         total_loss, losses_dict = self.compute_loss(one_hot_pred, one_hot_gt,
@@ -231,8 +233,13 @@ if __name__ == "__main__":
 
     trainer = Trainer(net, options["summary_writer"])
 
+    if options["restore_resnet_features"] is not None:
+        net.resnet_layers.restore_me(options["restore_resnet_features"])
+        print("ResNet weights restored from", options["restore_resnet_features"])
+
     if options["restore"] is not None:
-        net.load_weights(options["restore"], by_name=True)
+        net.load_weights(options["restore"])
+        print("Weights restored from", options["restore"])
 
     if options["test_only"]:
         trainer.test_epoch(tst_ds, 0, os.path.join(options["log_dir"], "visualization-00"), trace=True)

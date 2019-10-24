@@ -1,4 +1,5 @@
 import gin
+import h5py
 import numpy as np
 import tensorflow as tf
 
@@ -26,14 +27,16 @@ class TransNetV2(tf.keras.Model):
         x = inputs
         x = self.resnet_layers(x, training=training)
 
+        block_features = []
         for block in self.blocks:
             x = block(x, training=training)
+            block_features.append(x)
 
         shape = [tf.shape(x)[0], tf.shape(x)[1], np.prod(x.get_shape().as_list()[2:])]
         x = tf.reshape(x, shape=shape, name="flatten_3d")
 
         if self.frame_sim_layer is not None:
-            x = tf.concat([self.frame_sim_layer(x), x], 2)
+            x = tf.concat([self.frame_sim_layer(block_features), x], 2)
 
         x = self.fc1(x)
         one_hot = self.cls_layer1(x)
@@ -50,7 +53,10 @@ class StackedDDCNNV2(tf.keras.layers.Layer):
 
     def __init__(self, n_blocks, filters, shortcut=False, name="StackedDDCNN"):
         super(StackedDDCNNV2, self).__init__(name=name)
-        self.shortcut = shortcut
+        self.shortcut = None
+        if shortcut:
+            self.shortcut = tf.keras.layers.Conv3D(filters * 4, kernel_size=1, dilation_rate=1, padding="SAME",
+                                                   activation=None, use_bias=True, name="shortcut")
 
         self.blocks = [DilatedDCNNV2(filters, activation=tf.nn.relu if i != n_blocks else None,
                                      name="DDCNN_{:d}".format(i)) for i in range(1, n_blocks + 1)]
@@ -61,8 +67,8 @@ class StackedDDCNNV2(tf.keras.layers.Layer):
         for block in self.blocks:
             x = block(x, training=training)
 
-        if self.shortcut:
-            x += inputs
+        if self.shortcut is not None:
+            x += self.shortcut(inputs)
         x = tf.nn.relu(x)
 
         x = self.max_pool(x)
@@ -161,8 +167,20 @@ class ResNetFeatures(tf.keras.layers.Layer):
         x = self.layer2a(x, training=training)
         x = self.layer2b(x, training=training)
 
-        x = tf.reshape(x, [shape[0], shape[1], shape[2], shape[3], tf.shape(x)[3]])
+        new_shape = tf.shape(x)
+        x = tf.reshape(x, [shape[0], shape[1], new_shape[1], new_shape[2], new_shape[3]])
         return x
+
+    def restore_me(self, checkpoint):
+        with h5py.File(checkpoint, "r") as f:
+            for v in self.variables:
+                name = v.name.split("/")[2:]
+                if name[0].startswith("Block"):
+                    name = name[:1] + name
+                else:
+                    name = name[:len(name) - 1] + name
+                name = "/".join(name)
+                v.assign(f[name][:])
 
 
 @gin.configurable(whitelist=["similarity_dim", "lookup_window", "output_dim"])

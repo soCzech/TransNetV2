@@ -15,6 +15,11 @@ def predictions_to_scenes(predictions):
         t_prev = t
     if t == 0:
         scenes.append([start, i])
+
+    # just fix if all predictions are 1
+    if len(scenes) == 0:
+        return np.array([[0, len(predictions) - 1]], dtype=np.int32)
+
     return np.array(scenes, dtype=np.int32)
 
 
