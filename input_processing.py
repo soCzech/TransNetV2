@@ -11,6 +11,7 @@ def train_pipeline(filenames,
                    batch_size=16,
                    repeat=False):
     ds = tf.data.Dataset.from_tensor_slices(filenames)
+    ds = ds.shuffle(len(filenames))
     ds = ds.interleave(lambda x: tf.data.TFRecordDataset(x, compression_type="GZIP").map(parse_train_sample,
                                                                                          num_parallel_calls=1),
                        cycle_length=8,

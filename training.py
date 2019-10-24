@@ -15,7 +15,7 @@ import visualization_utils
 
 
 @gin.configurable("options")
-def get_options_dict(n_epochs=gin.REQUIRED,
+def get_options_dict(n_epochs=None,
                      log_dir=gin.REQUIRED,
                      log_name=gin.REQUIRED,
                      trn_files=gin.REQUIRED,
@@ -145,7 +145,7 @@ class Trainer:
         return one_hot_pred, many_hot_pred, self.optimizer.iterations
 
     def train_epoch(self, dataset, logit_fc=tf.sigmoid):
-        print("Training")
+        print("\nTraining")
         for metric in self.mean_metrics.values():
             metric.reset_states()
 
@@ -183,7 +183,7 @@ class Trainer:
             metric.reset_states()
 
         for ds_name, dataset in datasets:
-            print("Evaluating", ds_name)
+            print("\nEvaluating", ds_name.upper())
             one_hot_gt_list, one_hot_pred_list = [], []
 
             for i, (frame_sequence, one_hot_gt, many_hot_gt) in dataset.enumerate():
@@ -228,7 +228,7 @@ if __name__ == "__main__":
     gin.parse_config_file(args.config)
     options = get_options_dict()
 
-    trn_ds = input_processing.train_pipeline(options["trn_files"])
+    trn_ds = input_processing.train_pipeline(options["trn_files"]) if len(options["trn_files"]) > 0 else None
     tst_ds = [(name, input_processing.test_pipeline(files))
               for name, files in options["tst_files"].items()]
 

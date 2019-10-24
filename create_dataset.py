@@ -142,6 +142,23 @@ def create_train_dataset(target_dir, target_fn, mapping_fn, width, height, n_vid
                 writer.write(example.SerializeToString())
 
 
+def create_test_tfrecord_from_dataset(dataset, target_fn):
+    options = tf.io.TFRecordOptions(compression_type="GZIP")
+    with tf.io.TFRecordWriter(target_fn, options) as writer:
+        for scenes, one_hots, many_hots in dataset:
+            scenes, one_hots, many_hots = scenes.numpy().astype(np.uint8), one_hots.numpy(), many_hots.numpy()
+            for scene, one_hot, many_hot in zip(scenes, one_hots, many_hots):
+                for frame_idx in range(len(scene)):
+                    example = tf.train.Example(features=tf.train.Features(feature={
+                        "frame": _bytes_feature(scene[frame_idx].tobytes("C")),
+                        "is_one_hot_transition": _int64_feature(one_hot[frame_idx]),
+                        "is_many_hot_transition": _int64_feature(many_hot[frame_idx]),
+                        "width": _int64_feature(scene[frame_idx].shape[1]),
+                        "height": _int64_feature(scene[frame_idx].shape[0])
+                    }))
+                    writer.write(example.SerializeToString())
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Convert videos to tfrecords")
     parser.add_argument("type", type=str, choices=["train", "test"],
