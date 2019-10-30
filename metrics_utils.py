@@ -105,7 +105,7 @@ def graph(data, labels=None, marker=""):
     data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep="")
 
     width, height = fig.canvas.get_width_height()
-    fig.close()
+    plt.close()
     return data.reshape([height, width, 3])
 
 
@@ -126,6 +126,8 @@ def create_scene_based_summaries(one_hot_pred, one_hot_gt, prefix="test", step=0
         precision[i], recall[i], f1[i], (tp[i], fp[i], fn[i]) = evaluate_scenes(gt_scenes, pred_scenes)
 
     best_idx = np.argmax(f1)
+    tf.summary.scalar(prefix + "/scene/f1_score_0.1", f1[4], step=step)
+    tf.summary.scalar(prefix + "/scene/f1_score_0.5", f1[12], step=step)
     tf.summary.scalar(prefix + "/scene/f1_max_score", f1[best_idx], step=step)
     tf.summary.scalar(prefix + "/scene/f1_max_score_thr", thresholds[best_idx], step=step)
     tf.summary.scalar(prefix + "/scene/tp", tp[best_idx], step=step)

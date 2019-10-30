@@ -19,6 +19,7 @@ options.original_transnet = False
 training.optimizer = @tf.keras.optimizers.Adam
 training.log_freq = 200
 training.grad_clipping = 10.
+training.n_batches_per_epoch = None
 tf.keras.optimizers.Adam.learning_rate = 0.001
 
 loss.transition_weight = 1.
@@ -76,6 +77,7 @@ TransNetV2.D = 256
 TransNetV2.use_resnet_features = False
 TransNetV2.use_many_hot_targets = False
 TransNetV2.use_frame_similarity = False
+TransNetV2.use_mean_pooling = False
 
 StackedDDCNNV2.shortcut = False
 

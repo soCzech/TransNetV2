@@ -66,12 +66,14 @@ class Trainer:
     def __init__(self, net, summary_writer,
                  optimizer=None,
                  log_freq=None,
-                 grad_clipping=10.):
+                 grad_clipping=10.,
+                 n_batches_per_epoch=None):
         self.net = net
         self.summary_writer = summary_writer
         self.optimizer = optimizer() if optimizer is not None else None
         self.log_freq = log_freq
         self.grad_clipping = grad_clipping
+        self.n_batches_per_epoch = n_batches_per_epoch
         self.mean_metrics = dict([(name, tf.keras.metrics.Mean(name=name, dtype=tf.float32)) for name in
                                   ["loss/total", "loss/one_hot_loss", "loss/many_hot_loss", "loss/l2_loss"]])
 
@@ -162,6 +164,8 @@ class Trainer:
             else:
                 self.train_batch(frame_sequence, one_hot_gt, many_hot_gt, run_summaries=False)
             print("\r", i.numpy(), end="")
+            if self.n_batches_per_epoch is not None and self.n_batches_per_epoch == i:
+                break
 
     @tf.function(autograph=False)
     def test_batch(self, frame_sequence, one_hot_gt, many_hot_gt):

@@ -13,6 +13,7 @@ class TransNetV2(tf.keras.Model):
                  use_resnet_features=False,
                  use_many_hot_targets=False,
                  use_frame_similarity=False,
+                 use_mean_pooling=False,
                  name="TransNet"):
         super(TransNetV2, self).__init__(name=name)
 
@@ -22,6 +23,7 @@ class TransNetV2(tf.keras.Model):
         self.cls_layer1 = tf.keras.layers.Dense(1, activation=None)
         self.cls_layer2 = tf.keras.layers.Dense(1, activation=None) if use_many_hot_targets else None
         self.frame_sim_layer = FrameSimilarity() if use_frame_similarity else None
+        self.use_mean_pooling = use_mean_pooling
 
     def call(self, inputs, training=False):
         x = inputs
@@ -32,8 +34,11 @@ class TransNetV2(tf.keras.Model):
             x = block(x, training=training)
             block_features.append(x)
 
-        shape = [tf.shape(x)[0], tf.shape(x)[1], np.prod(x.get_shape().as_list()[2:])]
-        x = tf.reshape(x, shape=shape, name="flatten_3d")
+        if self.use_mean_pooling:
+            x = tf.math.reduce_mean(x, axis=[2, 3])
+        else:
+            shape = [tf.shape(x)[0], tf.shape(x)[1], np.prod(x.get_shape().as_list()[2:])]
+            x = tf.reshape(x, shape=shape, name="flatten_3d")
 
         if self.frame_sim_layer is not None:
             x = tf.concat([self.frame_sim_layer(block_features), x], 2)
