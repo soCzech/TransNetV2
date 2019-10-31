@@ -46,6 +46,8 @@ def get_options_dict(n_epochs=None,
     with open(os.path.join(log_dir, "config.gin"), "w") as f:
         f.write(config_str)
 
+    print("\n{}\n".format(log_name.upper()))
+
     return {
         "n_epochs": n_epochs,
         "log_dir": log_dir,
@@ -76,6 +78,7 @@ class Trainer:
         self.n_batches_per_epoch = n_batches_per_epoch
         self.mean_metrics = dict([(name, tf.keras.metrics.Mean(name=name, dtype=tf.float32)) for name in
                                   ["loss/total", "loss/one_hot_loss", "loss/many_hot_loss", "loss/l2_loss"]])
+        self.results = {}
 
     @gin.configurable("loss", blacklist=["one_hot_pred", "one_hot_gt", "many_hot_pred", "many_hot_gt"])
     def compute_loss(self, one_hot_pred, one_hot_gt, many_hot_pred=None, many_hot_gt=None,
@@ -219,8 +222,15 @@ class Trainer:
                 for loss_name, loss in self.mean_metrics.items():
                     tf.summary.scalar("test/{}/{}".format(ds_name, loss_name), loss.result(), step=epoch_no)
 
-                metrics_utils.create_scene_based_summaries(one_hot_pred_list, one_hot_gt_list,
-                                                           prefix="test/" + ds_name, step=epoch_no)
+                f1 = metrics_utils.create_scene_based_summaries(one_hot_pred_list, one_hot_gt_list,
+                                                                prefix="test/" + ds_name, step=epoch_no)
+                if self.results.get(ds_name, 0) < f1:
+                    self.results[ds_name] = f1
+
+    def finish(self):
+        with self.summary_writer.as_default():
+            for ds_name, f1 in self.results.items():
+                tf.summary.scalar("test/" + ds_name + "/scene/best_f1", f1, step=0)
 
 
 if __name__ == "__main__":
@@ -265,3 +275,4 @@ if __name__ == "__main__":
 
         trainer.test_epoch(tst_ds, epoch, os.path.join(options["log_dir"], "visualization-{:02d}".format(epoch)),
                            trace=epoch == 1, logit_fc=logit_fc)
+    trainer.finish()

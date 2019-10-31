@@ -146,3 +146,4 @@ def create_scene_based_summaries(one_hot_pred, one_hot_gt, prefix="test", step=0
                            labels=("Threshold", "F1 Score"),
                            marker=".")[np.newaxis],
                      step=step)
+    return f1[best_idx]
