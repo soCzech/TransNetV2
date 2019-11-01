@@ -35,6 +35,59 @@ def train_pipeline(filenames,
     return ds
 
 
+@gin.configurable(blacklist=["filenames"])
+def train_transition_pipeline(filenames,
+                              shuffle_buffer=100,
+                              batch_size=16,
+                              repeat=False):
+    ds = tf.data.Dataset.from_tensor_slices(filenames)
+    ds = ds.shuffle(len(filenames))
+    ds = ds.interleave(lambda x: tf.data.TFRecordDataset(x, compression_type="GZIP"),
+                       cycle_length=8,
+                       block_length=16,
+                       num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    ds = ds.map(parse_train_transition_sample, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    ds = ds.shuffle(shuffle_buffer)
+    ds = ds.batch(batch_size)
+    if repeat:
+        ds = ds.repeat()
+    ds = ds.prefetch(2)
+    return ds
+
+
+@tf.function
+@gin.configurable(blacklist=["sample"])
+def parse_train_transition_sample(sample,
+                                  shot_len=None,
+                                  frame_width=48,
+                                  frame_height=27):
+    features = tf.io.parse_single_example(sample, features={
+        "scene": tf.io.FixedLenFeature([], tf.string),
+        "one_hot": tf.io.FixedLenFeature([], tf.string),
+        "many_hot": tf.io.FixedLenFeature([], tf.string),
+        "length": tf.io.FixedLenFeature([], tf.int64)
+    })
+    length = tf.cast(features["length"], tf.int32)
+
+    scene = tf.io.decode_raw(features["scene"], tf.uint8)
+    scene = tf.reshape(scene, [length, frame_height, frame_width, 3])
+
+    one_hot = tf.io.decode_raw(features["one_hot"], tf.uint8)
+    many_hot = tf.io.decode_raw(features["many_hot"], tf.uint8)
+
+    shot_start = tf.random.uniform([], minval=0, maxval=length - shot_len, dtype=tf.int32)
+    shot_end = shot_start + shot_len
+
+    scene = tf.reshape(scene[shot_start:shot_end], [shot_len, frame_height, frame_width, 3])
+    scene = tf.cast(scene, dtype=tf.float32)
+    scene = augment_shot(scene)
+
+    one_hot = tf.reshape(one_hot[shot_start:shot_end], [shot_len])
+    many_hot = tf.reshape(many_hot[shot_start:shot_end], [shot_len])
+
+    return scene, one_hot, many_hot
+
+
 @tf.function
 @gin.configurable(blacklist=["sample"])
 def parse_train_sample(sample,

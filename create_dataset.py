@@ -142,6 +142,67 @@ def create_train_dataset(target_dir, target_fn, mapping_fn, width, height, n_vid
                 writer.write(example.SerializeToString())
 
 
+def get_transitions_from_video(video_fn, scenes_fn, width, height, window_size=160):
+    frames = video_utils.get_frames(video_fn, width, height)
+    n_frames = len(frames)
+
+    scenes = np.loadtxt(scenes_fn, dtype=np.int32, ndmin=2)
+    one_hot, many_hot = scenes2zero_one_representation(scenes, n_frames)
+
+    transitions = []
+    for i, is_transition in enumerate(one_hot):
+        if is_transition != 1:
+            continue
+
+        start = max(0, i - window_size // 2)
+        scene = frames[start:][:window_size]
+        if len(scene) != window_size:
+            continue
+        one = one_hot[start:][:window_size]
+        many = many_hot[start:][:window_size]
+
+        transitions.append((scene, one, many))
+    return transitions
+
+
+def create_train_transition_dataset(target_dir, target_fn, mapping_fn, width, height, n_videos_in_tfrecord=50):
+    os.makedirs(target_dir, exist_ok=True)
+    mapping = np.loadtxt(mapping_fn, dtype=np.str, delimiter=",").tolist()
+
+    random.seed(42)
+    random.shuffle(mapping)
+
+    pbar = tqdm.tqdm(total=len(mapping))
+    n_transitions = 0
+
+    for start_idx in range(0, len(mapping), n_videos_in_tfrecord):
+        tfrecord_scenes = []
+        for video_fn, scenes_fn in mapping[start_idx:start_idx + n_videos_in_tfrecord]:
+            tfrecord_scenes.extend(
+                get_transitions_from_video(video_fn, scenes_fn, width, height)
+            )
+            pbar.update()
+
+        random.shuffle(tfrecord_scenes)
+
+        options = tf.io.TFRecordOptions(compression_type="GZIP")
+        with tf.io.TFRecordWriter(
+                os.path.join(target_dir, "{}-{:04d}.tfrecord".format(target_fn, start_idx)), options) as writer:
+            for scene, one_hot, many_hot in tfrecord_scenes:
+                example = tf.train.Example(features=tf.train.Features(feature={
+                    "scene": _bytes_feature(scene.tobytes()),
+                    "one_hot": _bytes_feature(one_hot.astype(np.uint8).tobytes()),
+                    "many_hot": _bytes_feature(many_hot.astype(np.uint8).tobytes()),
+                    "length": _int64_feature(len(scene)),
+                    "width": _int64_feature(width),
+                    "height": _int64_feature(height)
+                }))
+                writer.write(example.SerializeToString())
+            n_transitions += len(tfrecord_scenes)
+
+    print("# Transitions: {:d}".format(n_transitions))
+
+
 def create_test_tfrecord_from_dataset(dataset, target_fn):
     options = tf.io.TFRecordOptions(compression_type="GZIP")
     with tf.io.TFRecordWriter(target_fn, options) as writer:
@@ -161,7 +222,7 @@ def create_test_tfrecord_from_dataset(dataset, target_fn):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Convert videos to tfrecords")
-    parser.add_argument("type", type=str, choices=["train", "test"],
+    parser.add_argument("type", type=str, choices=["train", "test", "train-transitions"],
                         help="type of tfrecord to generate")
     parser.add_argument("--mapping_fn", type=str, help="path to mapping file containing lines in following format: "
                                                        "/path/to/video.mp4,/path/to/scenes/gt", required=True)
@@ -175,5 +236,8 @@ if __name__ == "__main__":
     if args.type == "train":
         assert args.target_fn is not None
         create_train_dataset(args.target_dir, args.target_fn, args.mapping_fn, args.w, args.h)
+    elif args.type == "train-transitions":
+        assert args.target_fn is not None
+        create_train_transition_dataset(args.target_dir, args.target_fn, args.mapping_fn, args.w, args.h)
     elif args.type == "test":
         create_test_dataset(args.target_dir, args.mapping_fn, args.w, args.h)
