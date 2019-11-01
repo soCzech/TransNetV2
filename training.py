@@ -100,9 +100,12 @@ class Trainer:
             if transition_weight != 1:
                 one_hot_loss *= 1 + tf.cast(one_hot_gt, tf.float32) * (transition_weight - 1)
             elif dynamic_weight is not None:
-                trans_weight = 4 * (dynamic_weight - 1) * (one_hot_pred * one_hot_pred - one_hot_pred + 0.25)
-                trans_weight = tf.where(one_hot_pred < 0.5, trans_weight, 0)
+                pred_sigmoid = tf.nn.sigmoid(one_hot_pred)
+                trans_weight = 4 * (dynamic_weight - 1) * (pred_sigmoid * pred_sigmoid - pred_sigmoid + 0.25)
+                trans_weight = tf.where(pred_sigmoid < 0.5, trans_weight, 0)
+                trans_weight = tf.stop_gradient(trans_weight)
                 one_hot_loss *= 1 + tf.cast(one_hot_gt, tf.float32) * trans_weight
+
             one_hot_loss = tf.reduce_mean(one_hot_loss)
 
             many_hot_loss = 0.
