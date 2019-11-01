@@ -14,6 +14,7 @@ class TransNetV2(tf.keras.Model):
                  use_many_hot_targets=False,
                  use_frame_similarity=False,
                  use_mean_pooling=False,
+                 use_convex_comb_reg=False,
                  name="TransNet"):
         super(TransNetV2, self).__init__(name=name)
 
@@ -24,8 +25,11 @@ class TransNetV2(tf.keras.Model):
         self.cls_layer2 = tf.keras.layers.Dense(1, activation=None) if use_many_hot_targets else None
         self.frame_sim_layer = FrameSimilarity() if use_frame_similarity else None
         self.use_mean_pooling = use_mean_pooling
+        self.convex_comb_reg = ConvexCombinationRegularization() if use_convex_comb_reg else None
 
     def call(self, inputs, training=False):
+        out_dict = {}
+
         x = inputs
         x = self.resnet_layers(x, training=training)
 
@@ -33,6 +37,9 @@ class TransNetV2(tf.keras.Model):
         for block in self.blocks:
             x = block(x, training=training)
             block_features.append(x)
+
+        if self.convex_comb_reg is not None:
+            out_dict["alphas"], out_dict["comb_reg_loss"] = self.convex_comb_reg(inputs, x)
 
         if self.use_mean_pooling:
             x = tf.math.reduce_mean(x, axis=[2, 3])
@@ -47,9 +54,10 @@ class TransNetV2(tf.keras.Model):
         one_hot = self.cls_layer1(x)
 
         if self.cls_layer2 is not None:
-            many_hot = self.cls_layer2(x)
-            return one_hot, many_hot
+            out_dict["many_hot"] = self.cls_layer2(x)
 
+        if len(out_dict) > 0:
+            return one_hot, out_dict
         return one_hot
 
 
@@ -188,13 +196,14 @@ class ResNetFeatures(tf.keras.layers.Layer):
                 v.assign(f[name][:])
 
 
-@gin.configurable(whitelist=["similarity_dim", "lookup_window", "output_dim"])
+@gin.configurable(whitelist=["similarity_dim", "lookup_window", "output_dim", "stop_gradient"])
 class FrameSimilarity(tf.keras.layers.Layer):
 
     def __init__(self,
                  similarity_dim=128,
                  lookup_window=101,
                  output_dim=128,
+                 stop_gradient=False,
                  name="FrameSimilarity"):
         super(FrameSimilarity, self).__init__(name=name)
 
@@ -202,12 +211,16 @@ class FrameSimilarity(tf.keras.layers.Layer):
         self.fc = tf.keras.layers.Dense(output_dim, activation=tf.nn.relu)
 
         self.lookup_window = lookup_window
+        self.stop_gradient = stop_gradient
         assert lookup_window % 2 == 1, "`lookup_window` must be odd integer"
 
     def call(self, inputs):
         x = tf.concat([
             tf.math.reduce_mean(x, axis=[2, 3]) for x in inputs
         ], axis=2)
+
+        if self.stop_gradient:
+            x = tf.stop_gradient(x)
 
         x = self.projection(x)
         x = tf.nn.l2_normalize(x, axis=2)
@@ -230,3 +243,46 @@ class FrameSimilarity(tf.keras.layers.Layer):
 
         similarities = tf.gather_nd(similarities_padded, indices)
         return self.fc(similarities)
+
+
+@gin.configurable(whitelist=["filters", "delta_scale", "loss_weight"])
+class ConvexCombinationRegularization(tf.keras.layers.Layer):
+
+    def __init__(self, filters=32, delta_scale=10., loss_weight=0.01, name="ConvexCombinationRegularization"):
+        super(ConvexCombinationRegularization, self).__init__(name=name)
+
+        self.projection = tf.keras.layers.Conv3D(filters, kernel_size=1, dilation_rate=1, padding="SAME",
+                                                 activation=tf.nn.relu, use_bias=True)
+        self.features = tf.keras.layers.Conv3D(filters * 2, kernel_size=(3, 3, 3), dilation_rate=1, padding="SAME",
+                                               activation=tf.nn.relu, use_bias=True)
+        self.dense = tf.keras.layers.Dense(1, activation=None, use_bias=True)
+        self.loss = tf.keras.losses.Huber(reduction=tf.keras.losses.Reduction.NONE)
+        self.delta_scale = delta_scale
+        self.loss_weight = loss_weight
+
+    def call(self, image_inputs, feature_inputs):
+        x = feature_inputs
+        x = self.projection(x)
+
+        batch_size = tf.shape(x)[0]
+        window_size = tf.shape(x)[1]
+
+        first_frame = tf.tile(x[:, :1], [1, window_size, 1, 1, 1])
+        last_frame = tf.tile(x[:, -1:], [1, window_size, 1, 1, 1])
+
+        x = tf.concat([x, first_frame, last_frame], -1)
+        x = self.features(x)
+
+        x = tf.math.reduce_mean(x, axis=[2, 3])
+        alpha = self.dense(x)
+
+        first_img = tf.tile(image_inputs[:, :1], [1, window_size, 1, 1, 1])
+        last_img = tf.tile(image_inputs[:, -1:], [1, window_size, 1, 1, 1])
+
+        alpha_ = tf.nn.sigmoid(alpha)
+        alpha_ = tf.reshape(alpha_, [batch_size, window_size, 1, 1, 1])
+        predictions_ = (alpha_ * first_img + (1 - alpha_) * last_img)
+
+        loss_ = self.loss(y_true=image_inputs / self.delta_scale, y_pred=predictions_ / self.delta_scale)
+        loss_ = self.loss_weight * tf.math.reduce_mean(loss_)
+        return alpha, loss_

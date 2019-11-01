@@ -15,6 +15,7 @@ options.test_only = False
 options.restore = None
 options.restore_resnet_features = None
 options.original_transnet = False
+options.transition_only_dataset = False
 
 training.optimizer = @tf.keras.optimizers.Adam
 training.log_freq = 200
@@ -25,6 +26,7 @@ tf.keras.optimizers.Adam.learning_rate = 0.001
 loss.transition_weight = 1.
 loss.many_hot_loss_weight = 0.
 loss.l2_loss_weight = 0.
+loss.dynamic_weight = None
 
 # Dataset Config
 #################
@@ -39,6 +41,14 @@ train_pipeline.repeat = False
 parse_train_sample.shot_len = %shot_len
 parse_train_sample.frame_width = %frame_width
 parse_train_sample.frame_height = %frame_height
+
+train_transition_pipeline.shuffle_buffer = 100
+train_transition_pipeline.batch_size = 16
+train_transition_pipeline.repeat = False
+
+parse_train_transition_sample.shot_len = %shot_len
+parse_train_transition_sample.frame_width = %frame_width
+parse_train_transition_sample.frame_height = %frame_height
 
 augment_shot.up_down_flip_prob = 0.2
 augment_shot.left_right_flip_prob = 0.5
@@ -78,6 +88,7 @@ TransNetV2.use_resnet_features = False
 TransNetV2.use_many_hot_targets = False
 TransNetV2.use_frame_similarity = False
 TransNetV2.use_mean_pooling = False
+TransNetV2.use_convex_comb_reg = False
 
 StackedDDCNNV2.shortcut = False
 
@@ -92,3 +103,9 @@ ResNetFeatures.trainable = False
 FrameSimilarity.similarity_dim = 128
 FrameSimilarity.lookup_window = 101
 FrameSimilarity.output_dim = 128
+FrameSimilarity.stop_gradient = False
+
+# affected by: TransNetV2.use_convex_comb_reg
+ConvexCombinationRegularization.filters = 32
+ConvexCombinationRegularization.delta_scale = 10.
+ConvexCombinationRegularization.loss_weight = 0.01

@@ -24,7 +24,8 @@ def get_options_dict(n_epochs=None,
                      test_only=False,
                      restore=None,
                      restore_resnet_features=None,
-                     original_transnet=False):
+                     original_transnet=False,
+                     transition_only_dataset=False):
     trn_files_ = []
     for fn in trn_files:
         trn_files_.extend(glob.glob(fn))
@@ -58,7 +59,8 @@ def get_options_dict(n_epochs=None,
         "test_only": test_only,
         "restore": restore,
         "restore_resnet_features": restore_resnet_features,
-        "original_transnet": original_transnet
+        "original_transnet": original_transnet,
+        "transition_only_dataset": transition_only_dataset
     }
 
 
@@ -77,20 +79,30 @@ class Trainer:
         self.grad_clipping = grad_clipping
         self.n_batches_per_epoch = n_batches_per_epoch
         self.mean_metrics = dict([(name, tf.keras.metrics.Mean(name=name, dtype=tf.float32)) for name in
-                                  ["loss/total", "loss/one_hot_loss", "loss/many_hot_loss", "loss/l2_loss"]])
+                                  ["loss/total", "loss/one_hot_loss", "loss/many_hot_loss", "loss/l2_loss",
+                                   "loss/comb_reg"]])
         self.results = {}
 
-    @gin.configurable("loss", blacklist=["one_hot_pred", "one_hot_gt", "many_hot_pred", "many_hot_gt"])
+    @gin.configurable("loss", blacklist=["one_hot_pred", "one_hot_gt", "many_hot_pred", "many_hot_gt", "reg_losses"])
     def compute_loss(self, one_hot_pred, one_hot_gt, many_hot_pred=None, many_hot_gt=None,
                      transition_weight=1.,
                      many_hot_loss_weight=0.,
-                     l2_loss_weight=0.):
+                     l2_loss_weight=0.,
+                     dynamic_weight=None,
+                     reg_losses=None):
+        assert not (dynamic_weight and transition_weight != 1)
+
+        one_hot_pred = one_hot_pred[:, :, 0]
 
         with tf.name_scope("losses"):
-            one_hot_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=one_hot_pred[:, :, 0],
+            one_hot_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=one_hot_pred,
                                                                    labels=tf.cast(one_hot_gt, tf.float32))
             if transition_weight != 1:
                 one_hot_loss *= 1 + tf.cast(one_hot_gt, tf.float32) * (transition_weight - 1)
+            elif dynamic_weight is not None:
+                trans_weight = 4 * (dynamic_weight - 1) * (one_hot_pred * one_hot_pred - one_hot_pred + 0.25)
+                trans_weight = tf.where(one_hot_pred < 0.5, trans_weight, 0)
+                one_hot_loss *= 1 + tf.cast(one_hot_gt, tf.float32) * trans_weight
             one_hot_loss = tf.reduce_mean(one_hot_loss)
 
             many_hot_loss = 0.
@@ -103,23 +115,39 @@ class Trainer:
             if l2_loss_weight != 0.:
                 l2_loss = l2_loss_weight * tf.add_n([tf.nn.l2_loss(v) for v in self.net.trainable_weights],
                                                     name="l2_loss")
-            total_loss = one_hot_loss + many_hot_loss + l2_loss
 
-            return total_loss, {"loss/total": total_loss,
-                                "loss/one_hot_loss": one_hot_loss,
-                                "loss/many_hot_loss": many_hot_loss,
-                                "loss/l2_loss": l2_loss}
+            total_loss = one_hot_loss + many_hot_loss + l2_loss
+            losses = {
+                "loss/one_hot_loss": one_hot_loss,
+                "loss/many_hot_loss": many_hot_loss,
+                "loss/l2_loss": l2_loss
+            }
+
+            if reg_losses is not None:
+                for name, value in reg_losses.items():
+                    if value is not None:
+                        total_loss += value
+                        losses["loss/" + name] = value
+            losses["loss/total"] = total_loss
+
+            return total_loss, losses
 
     @tf.function(autograph=False)
     def train_batch(self, frame_sequence, one_hot_gt, many_hot_gt, run_summaries=False):
         with tf.GradientTape() as tape:
             one_hot_pred = self.net(frame_sequence)
-            many_hot_pred = None
+
+            dict_ = {}
             if isinstance(one_hot_pred, tuple):
-                one_hot_pred, many_hot_pred = one_hot_pred
+                one_hot_pred, dict_ = one_hot_pred
+
+            many_hot_pred = dict_.get("many_hot", None)
+            alphas = dict_.get("alphas", None)
+            comb_reg_loss = dict_.get("comb_reg_loss", None)
 
             total_loss, losses_dict = self.compute_loss(one_hot_pred, one_hot_gt,
-                                                        many_hot_pred, many_hot_gt)
+                                                        many_hot_pred, many_hot_gt,
+                                                        reg_losses={"comb_reg": comb_reg_loss})
 
         grads = tape.gradient(total_loss, self.net.trainable_weights)
         with tf.name_scope("grad_check"):
@@ -147,7 +175,7 @@ class Trainer:
                 tf.summary.scalar(loss_name, self.mean_metrics[loss_name].result(), step=self.optimizer.iterations)
                 self.mean_metrics[loss_name].reset_states()
 
-        return one_hot_pred, many_hot_pred, self.optimizer.iterations
+        return one_hot_pred, alphas if alphas is not None else many_hot_pred, self.optimizer.iterations
 
     def train_epoch(self, dataset, logit_fc=tf.sigmoid):
         print("\nTraining")
@@ -173,17 +201,23 @@ class Trainer:
     @tf.function(autograph=False)
     def test_batch(self, frame_sequence, one_hot_gt, many_hot_gt):
         one_hot_pred = self.net(frame_sequence)
-        many_hot_pred = None
+
+        dict_ = {}
         if isinstance(one_hot_pred, tuple):
-            one_hot_pred, many_hot_pred = one_hot_pred
+            one_hot_pred, dict_ = one_hot_pred
+
+        many_hot_pred = dict_.get("many_hot", None)
+        alphas = dict_.get("alphas", None)
+        comb_reg_loss = dict_.get("comb_reg_loss", None)
 
         total_loss, losses_dict = self.compute_loss(one_hot_pred, one_hot_gt,
-                                                    many_hot_pred, many_hot_gt)
+                                                    many_hot_pred, many_hot_gt,
+                                                    reg_losses={"comb_reg": comb_reg_loss})
 
         for loss_name, loss_value in losses_dict.items():
             self.mean_metrics[loss_name].update_state(loss_value)
 
-        return one_hot_pred, many_hot_pred
+        return one_hot_pred, alphas if alphas is not None else many_hot_pred
 
     def test_epoch(self, datasets, epoch_no, save_visualization_to=None, trace=False, logit_fc=tf.sigmoid):
         for metric in self.mean_metrics.values():
@@ -242,7 +276,10 @@ if __name__ == "__main__":
     gin.parse_config_file(args.config)
     options = get_options_dict()
 
-    trn_ds = input_processing.train_pipeline(options["trn_files"]) if len(options["trn_files"]) > 0 else None
+    if options["transition_only_dataset"]:
+        trn_ds = input_processing.train_transition_pipeline(options["trn_files"])
+    else:
+        trn_ds = input_processing.train_pipeline(options["trn_files"]) if len(options["trn_files"]) > 0 else None
     tst_ds = [(name, input_processing.test_pipeline(files))
               for name, files in options["tst_files"].items()]
 
