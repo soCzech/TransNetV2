@@ -15,6 +15,7 @@ class TransNetV2(tf.keras.Model):
                  use_frame_similarity=False,
                  use_mean_pooling=False,
                  use_convex_comb_reg=False,
+                 dropout_rate=None,
                  name="TransNet"):
         super(TransNetV2, self).__init__(name=name)
 
@@ -26,6 +27,7 @@ class TransNetV2(tf.keras.Model):
         self.frame_sim_layer = FrameSimilarity() if use_frame_similarity else None
         self.use_mean_pooling = use_mean_pooling
         self.convex_comb_reg = ConvexCombinationRegularization() if use_convex_comb_reg else None
+        self.dropout = tf.keras.layers.Dropout(dropout_rate) if dropout_rate is not None else None
 
     def call(self, inputs, training=False):
         out_dict = {}
@@ -51,6 +53,9 @@ class TransNetV2(tf.keras.Model):
             x = tf.concat([self.frame_sim_layer(block_features), x], 2)
 
         x = self.fc1(x)
+        if self.dropout is not None:
+            x = self.dropout(x, training=training)
+
         one_hot = self.cls_layer1(x)
 
         if self.cls_layer2 is not None:

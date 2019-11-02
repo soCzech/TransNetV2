@@ -138,7 +138,7 @@ class Trainer:
     @tf.function(autograph=False)
     def train_batch(self, frame_sequence, one_hot_gt, many_hot_gt, run_summaries=False):
         with tf.GradientTape() as tape:
-            one_hot_pred = self.net(frame_sequence)
+            one_hot_pred = self.net(frame_sequence, training=True)
 
             dict_ = {}
             if isinstance(one_hot_pred, tuple):
@@ -203,7 +203,7 @@ class Trainer:
 
     @tf.function(autograph=False)
     def test_batch(self, frame_sequence, one_hot_gt, many_hot_gt):
-        one_hot_pred = self.net(frame_sequence)
+        one_hot_pred = self.net(frame_sequence, training=False)
 
         dict_ = {}
         if isinstance(one_hot_pred, tuple):

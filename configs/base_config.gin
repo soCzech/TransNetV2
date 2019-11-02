@@ -89,6 +89,7 @@ TransNetV2.use_many_hot_targets = False
 TransNetV2.use_frame_similarity = False
 TransNetV2.use_mean_pooling = False
 TransNetV2.use_convex_comb_reg = False
+TransNetV2.dropout_rate = None
 
 StackedDDCNNV2.shortcut = False
 StackedDDCNNV2.use_octave_conv = False
