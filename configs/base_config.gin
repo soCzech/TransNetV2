@@ -91,10 +91,16 @@ TransNetV2.use_mean_pooling = False
 TransNetV2.use_convex_comb_reg = False
 
 StackedDDCNNV2.shortcut = False
+StackedDDCNNV2.use_octave_conv = False
+StackedDDCNNV2.pool_type = "max"
 
 DilatedDCNNV2.batch_norm = False
 
 Conv3DConfigurable.separable = False
+Conv3DConfigurable.kernel_initializer = "glorot_uniform"
+
+# affected by: StackedDDCNNV2.use_octave_conv
+OctConv3D.alpha = 0.25
 
 # affected by: TransNetV2.use_resnet_features
 ResNetFeatures.trainable = False
