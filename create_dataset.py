@@ -1,6 +1,7 @@
 import os
 import tqdm
 import random
+import shutil
 import argparse
 import numpy as np
 import tensorflow as tf
@@ -86,6 +87,19 @@ def create_test_dataset(target_dir, mapping_fn, width, height):
     for video_fn, scenes_fn in tqdm.tqdm(mapping):
         target_fn = os.path.join(target_dir, os.path.splitext(os.path.basename(video_fn))[0] + ".tfrecord")
         create_test_tfrecord(video_fn, scenes_fn, target_fn, width, height)
+
+
+def create_test_npy_files(target_dir, mapping_fn, width, height):
+    os.makedirs(target_dir, exist_ok=True)
+    mapping = np.loadtxt(mapping_fn, dtype=np.str, delimiter=",")
+
+    for video_fn, scenes_fn in tqdm.tqdm(mapping):
+        fn = os.path.splitext(os.path.basename(video_fn))[0]
+        target_fn = os.path.join(target_dir, fn + ".npy")
+        frames = video_utils.get_frames(video_fn, width, height)
+
+        shutil.copy2(scenes_fn, os.path.join(target_dir, fn + ".txt"))
+        np.save(target_fn, frames)
 
 
 def get_scenes_from_video(video_fn, scenes_fn, width, height, min_scene_len=25):
@@ -222,7 +236,7 @@ def create_test_tfrecord_from_dataset(dataset, target_fn):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Convert videos to tfrecords")
-    parser.add_argument("type", type=str, choices=["train", "test", "train-transitions"],
+    parser.add_argument("type", type=str, choices=["train", "test", "train-transitions", "test-npy"],
                         help="type of tfrecord to generate")
     parser.add_argument("--mapping_fn", type=str, help="path to mapping file containing lines in following format: "
                                                        "/path/to/video.mp4,/path/to/scenes/gt", required=True)
@@ -241,3 +255,5 @@ if __name__ == "__main__":
         create_train_transition_dataset(args.target_dir, args.target_fn, args.mapping_fn, args.w, args.h)
     elif args.type == "test":
         create_test_dataset(args.target_dir, args.mapping_fn, args.w, args.h)
+    elif args.type == "test-npy":
+        create_test_npy_files(args.target_dir, args.mapping_fn, args.w, args.h)
