@@ -14,7 +14,7 @@ import input_processing
 import visualization_utils
 
 
-@gin.configurable("options")
+@gin.configurable("options", blacklist=["create_dir_and_summaries"])
 def get_options_dict(n_epochs=None,
                      log_dir=gin.REQUIRED,
                      log_name=gin.REQUIRED,
@@ -25,7 +25,8 @@ def get_options_dict(n_epochs=None,
                      restore=None,
                      restore_resnet_features=None,
                      original_transnet=False,
-                     transition_only_dataset=False):
+                     transition_only_dataset=False,
+                     create_dir_and_summaries=True):
     trn_files_ = []
     for fn in trn_files:
         trn_files_.extend(glob.glob(fn))
@@ -37,15 +38,16 @@ def get_options_dict(n_epochs=None,
             tst_files_[k].extend(glob.glob(fn))
 
     log_dir = os.path.join(log_dir, log_name + "_" + datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S"))
-    summary_writer = tf.summary.create_file_writer(log_dir)
+    summary_writer = tf.summary.create_file_writer(log_dir) if create_dir_and_summaries else None
 
     config_str = gin.config_str().replace("# ", "### ").split("\n")
     config_str = "\n\n".join([l for l in config_str if not l.startswith("### =====")])
 
-    with summary_writer.as_default():
-        tf.summary.text("config", config_str, step=0)
-    with open(os.path.join(log_dir, "config.gin"), "w") as f:
-        f.write(config_str)
+    if create_dir_and_summaries:
+        with summary_writer.as_default():
+            tf.summary.text("config", config_str, step=0)
+        with open(os.path.join(log_dir, "config.gin"), "w") as f:
+            f.write(config_str.replace("\n\n", "\n"))
 
     print("\n{}\n".format(log_name.upper()))
 
