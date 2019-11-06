@@ -12,7 +12,7 @@ class OriginalTransNet(tf.keras.Model):
         self.fc2 = tf.keras.layers.Dense(2, activation=None)
 
     def call(self, inputs, training=False):
-        x = inputs
+        x = inputs / 255.
         for block in self.blocks:
             x = block(x)
 
