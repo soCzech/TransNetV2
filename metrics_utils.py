@@ -23,7 +23,7 @@ def predictions_to_scenes(predictions):
     return np.array(scenes, dtype=np.int32)
 
 
-def evaluate_scenes(gt_scenes, pred_scenes):
+def evaluate_scenes(gt_scenes, pred_scenes, return_mistakes=False):
     """
     Adapted from: https://github.com/gyglim/shot-detection-evaluation
     The original based on: http://imagelab.ing.unimore.it/imagelab/researchActivity.asp?idActivity=19
@@ -37,19 +37,24 @@ def evaluate_scenes(gt_scenes, pred_scenes):
 
     i, j = 0, 0
     tp, fp, fn = 0, 0, 0
+    fp_mistakes, fn_mistakes = [], []
 
     while i < len(gt_trans) or j < len(pred_trans):
         if j == len(pred_trans):
             fn += 1
+            fn_mistakes.append(gt_trans[i])
             i += 1
         elif i == len(gt_trans):
             fp += 1
+            fp_mistakes.append(pred_trans[j])
             j += 1
         elif pred_trans[j, 1] < gt_trans[i, 0]:
             fp += 1
+            fp_mistakes.append(pred_trans[j])
             j += 1
         elif pred_trans[j, 0] > gt_trans[i, 1]:
             fn += 1
+            fn_mistakes.append(gt_trans[i])
             i += 1
         else:
             i += 1
@@ -74,6 +79,8 @@ def evaluate_scenes(gt_scenes, pred_scenes):
     assert tp + fn == len(gt_trans)
     assert tp + fp == len(pred_trans)
 
+    if return_mistakes:
+        return p, r, f1, (tp, fp, fn), fp_mistakes, fn_mistakes
     return p, r, f1, (tp, fp, fn)
 
 

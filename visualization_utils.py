@@ -108,3 +108,37 @@ def visualize_predictions(frame_sequence, one_hot_pred, one_hot_gt, many_hot_pre
 
     images = np.stack(images, 0)
     return images
+
+
+def visualize_errors(frames, predictions, targets, fp_mistakes, fn_mistakes):
+    scenes, scene_preds = [], []
+    _, ih, iw, _ = frames.shape
+
+    for mistakes in [fp_mistakes, fn_mistakes]:
+        for start, end in mistakes:
+            idx = int(start + (end - start) // 2)
+            scene = frames[max(0, idx - 25):][:50]
+            scene_pred = predictions[max(0, idx - 25):][:50]
+            scene_tar = targets[max(0, idx - 25):][:50]
+
+            if len(scene) < 50:
+                continue
+            scenes.append(scene)
+            scene_preds.append((scene_tar, scene_pred))
+
+    if len(scenes) == 0:
+        return None
+    scenes = np.concatenate([np.concatenate(list(scene), 1) for scene in scenes], 0)
+
+    img = Image.fromarray(scenes)
+    draw = ImageDraw.Draw(img)
+    for h, preds in enumerate(scene_preds):
+        for w, (tar, pred) in enumerate(zip(*preds)):
+            if tar == 1:
+                draw.text((w * iw + iw - 10, h * ih), "T", fill=(255, 0, 0))
+
+            draw.rectangle([(w * iw + iw - 1, h * ih), (w * iw + iw - 4, h * ih + ih - 1)],
+                           fill=(0, 0, 0))
+            draw.rectangle([(w * iw + iw - 2, h * ih),
+                            (w * iw + iw - 3, h * ih + (ih - 1) * pred)], fill=(0, 255, 0))
+    return img

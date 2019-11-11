@@ -12,6 +12,7 @@ import models
 import transnet
 import training
 import metrics_utils
+import create_dataset
 import input_processing
 import visualization_utils
 
@@ -34,6 +35,7 @@ if __name__ == "__main__":
     parser.add_argument("log_dir", help="path to log dir")
     parser.add_argument("epoch", help="what weights to use", type=int)
     parser.add_argument("directory", help="path to the test dataset")
+    parser.add_argument("--thr", default=0.5, type=float, help="threshold for transition")
     args = parser.parse_args()
 
     gin.parse_config_file(os.path.join(args.log_dir, "config.gin"))
@@ -59,6 +61,11 @@ if __name__ == "__main__":
     files = glob.glob(os.path.join(args.directory, "*.npy"))
 
     results = []
+    total_stats = {"tp": 0, "fp": 0, "fn": 0}
+
+    img_dir = os.path.join(args.log_dir, "results-{}".format(args.epoch))
+    os.makedirs(img_dir, exist_ok=True)
+
     for np_fn in tqdm.tqdm(files):
         predictions = []
         frames = np.load(np_fn)
@@ -70,8 +77,33 @@ if __name__ == "__main__":
         predictions = np.concatenate(predictions, 0)[:len(frames)]
         gt_scenes = np.loadtxt(np_fn[:-3] + "txt", dtype=np.int32, ndmin=2)
 
+        _, _, _, (tp, fp, fn), fp_mistakes, fn_mistakes = metrics_utils.evaluate_scenes(
+            gt_scenes, metrics_utils.predictions_to_scenes((predictions >= args.thr).astype(np.uint8)),
+            return_mistakes=True)
+
+        total_stats["tp"] += tp
+        total_stats["fp"] += fp
+        total_stats["fn"] += fn
+
+        if len(fp_mistakes) > 0 or len(fn_mistakes) > 0:
+            img = visualization_utils.visualize_errors(
+                frames, predictions,
+                create_dataset.scenes2zero_one_representation(gt_scenes, len(frames))[1],
+                fp_mistakes, fn_mistakes)
+            if img is not None:
+                img.save(os.path.join(img_dir, os.path.basename(np_fn[:-3]) + "png"))
+
         results.append((np_fn, predictions, gt_scenes))
 
     with open(os.path.join(args.log_dir, "results-{}-epoch{:d}.pickle".format(
             [i for i in args.directory.split("/") if i != ""][-1], args.epoch)), "wb") as f:
         pickle.dump(results, f)
+
+    p = total_stats["tp"] / (total_stats["tp"] + total_stats["fp"])
+    r = total_stats["tp"] / (total_stats["tp"] + total_stats["fn"])
+    f1 = (p * r * 2) / (p + r)
+    print(f"""
+    Precision:{p*100:5.2f}%
+    Recall:   {r*100:5.2f}%
+    F1 Score: {f1*100:5.2f}%
+    """)
