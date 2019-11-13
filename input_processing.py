@@ -93,23 +93,76 @@ def parse_train_transition_sample(sample,
 def parse_train_sample(sample,
                        shot_len=None,
                        frame_width=48,
-                       frame_height=27):
+                       frame_height=27,
+                       sudden_color_change_prob=0.,
+                       spacial_augmentation=False,
+                       original_width=None,
+                       original_height=None):
     features = tf.io.parse_single_example(sample, features={
         "scene": tf.io.FixedLenFeature([], tf.string),
         "length": tf.io.FixedLenFeature([], tf.int64)
     })
     length = tf.cast(features["length"], tf.int32)
 
+    original_width = original_width if spacial_augmentation else frame_width
+    original_height = original_height if spacial_augmentation else frame_height
+
     scene = tf.io.decode_raw(features["scene"], tf.uint8)
-    scene = tf.reshape(scene, [length, frame_height, frame_width, 3])
+    scene = tf.reshape(scene, [length, original_height, original_width, 3])
 
     shot_start = tf.random.uniform([], minval=0, maxval=tf.maximum(1, length - shot_len), dtype=tf.int32)
     shot_end = shot_start + shot_len
     scene = scene[shot_start:shot_end]
 
     scene = tf.cast(scene, dtype=tf.float32)
+
+    if sudden_color_change_prob != 0.:
+        def color_change(shot_):
+            bound = tf.random.uniform([], minval=1, maxval=tf.shape(shot_)[0], dtype=tf.int32)
+            start, end = shot_[:bound], shot_[bound:]
+            start = augment_shot(start, up_down_flip_prob=0., left_right_flip_prob=0.)
+            return tf.concat([start, end], axis=0)
+
+        shot = tf.cond(tf.random.uniform([]) < sudden_color_change_prob,
+                       lambda: color_change(shot), lambda: shot)
+
+    if spacial_augmentation:
+        scene = augment_shot_spacial(augment_shot, frame_width, frame_height)
+
     scene = augment_shot(scene)
     return scene, tf.shape(scene)[0]  # [<SHOT_LENGTH, IMAGE_HEIGHT, IMAGE_WIDTH, 3]
+
+
+@tf.function
+@gin.configurable(blacklist=["shot", "target_width", "target_height"])
+def augment_shot_spacial(shot, target_width, target_height,
+                         random_shake_prob=0.3,
+                         random_shake_max_size=15,
+                         clip_left_right=20,
+                         clip_top_bottom=10):
+    # random shake
+    def random_shake(shot_):
+        bound = tf.random.uniform([], minval=1, maxval=tf.shape(shot_)[0], dtype=tf.int32)
+        shake = tf.random.uniform([], minval=1, maxval=random_shake_max_size, dtype=tf.int32)
+
+        start, end = shot[:bound], shot[bound:]
+        start, end = tf.cond(tf.random.uniform([]) < 0.5,
+                             lambda: (start[:, shake:], end[:, :-shake]),
+                             lambda: (start[:, :-shake], end[:, shake:]))
+        return tf.concat([start, end], axis=0)
+
+    shot = tf.cond(tf.random.uniform([]) < random_shake_prob,
+                   lambda: random_shake(shot), lambda: shot)
+
+    left = tf.random.uniform([], minval=0, maxval=clip_left_right, dtype=tf.int32)
+    right = tf.random.uniform([], minval=0, maxval=clip_left_right, dtype=tf.int32)
+
+    top = tf.random.uniform([], minval=0, maxval=clip_top_bottom, dtype=tf.int32)
+    bottom = tf.random.uniform([], minval=0, maxval=clip_top_bottom, dtype=tf.int32)
+
+    shot = shot[:, top:tf.shape(shot)[1] - bottom, left:tf.shape(shot)[2] - right]
+    shot = tf.image.resize(shot, [target_height, target_width])
+    return shot
 
 
 @tf.function
@@ -128,14 +181,18 @@ def augment_shot(shot,
     shot = tf.cond(tf.random.uniform([]) < left_right_flip_prob,
                    lambda: tf.image.flip_left_right(shot), lambda: shot)
 
+    shot = shot / 255.
     if adjust_saturation:
         shot = tf.image.adjust_saturation(shot, saturation_factor=tf.random.uniform([], minval=0.8, maxval=1.2))
     if adjust_contrast:
         shot = tf.image.adjust_contrast(shot, contrast_factor=tf.random.uniform([], minval=0.8, maxval=1.2))
+        shot = tf.clip_by_value(shot, 0., 1.)
     if adjust_brightness:
         shot = tf.image.adjust_brightness(shot, delta=tf.random.uniform([], minval=-0.1, maxval=0.1))
     if adjust_hue:
         shot = tf.image.adjust_hue(shot, delta=tf.random.uniform([], minval=-0.1, maxval=0.1))
+
+    shot = tf.clip_by_value(shot, 0., 1.) * 255.
     return shot
 
 

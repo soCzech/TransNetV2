@@ -10,12 +10,13 @@ options.log_dir = "logs"
 options.log_name = "test"
 options.trn_files = ["/glob/path/*.tfrecord"]
 options.tst_files = {"name": ["/glob/path/*.tfrecord"]}
+options.transition_only_trn_files = None
+options.transition_only_data_fraction = 0.3
 options.input_shape = [%shot_len, %frame_height, %frame_width, 3]
 options.test_only = False
 options.restore = None
 options.restore_resnet_features = None
 options.original_transnet = False
-options.transition_only_dataset = False
 
 training.optimizer = @tf.keras.optimizers.Adam
 training.log_freq = 200
@@ -41,6 +42,10 @@ train_pipeline.repeat = False
 parse_train_sample.shot_len = %shot_len
 parse_train_sample.frame_width = %frame_width
 parse_train_sample.frame_height = %frame_height
+parse_train_sample.sudden_color_change_prob = 0.
+parse_train_sample.spacial_augmentation = False
+parse_train_sample.original_width = None
+parse_train_sample.original_height = None
 
 train_transition_pipeline.shuffle_buffer = 100
 train_transition_pipeline.batch_size = 16
@@ -56,6 +61,11 @@ augment_shot.adjust_saturation = True
 augment_shot.adjust_contrast = False # can destroy the image
 augment_shot.adjust_brightness = True
 augment_shot.adjust_hue = True
+
+augment_shot_spacial.random_shake_prob = 0.3
+augment_shot_spacial.random_shake_max_size = 15
+augment_shot_spacial.clip_left_right = 20
+augment_shot_spacial.clip_top_bottom = 10
 
 concat_shots.shot_len = %shot_len
 concat_shots.color_transfer_prob = 0.3

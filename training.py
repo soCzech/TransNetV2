@@ -25,11 +25,17 @@ def get_options_dict(n_epochs=None,
                      restore=None,
                      restore_resnet_features=None,
                      original_transnet=False,
-                     transition_only_dataset=False,
-                     create_dir_and_summaries=True):
+                     transition_only_trn_files=None,
+                     create_dir_and_summaries=True,
+                     transition_only_data_fraction=0.3):
     trn_files_ = []
     for fn in trn_files:
         trn_files_.extend(glob.glob(fn))
+
+    if transition_only_trn_files is not None:
+        transition_trn_files_ = []
+        for fn in transition_only_trn_files:
+            transition_trn_files_.extend(glob.glob(fn))
 
     tst_files_ = {}
     for k, v in tst_files.items():
@@ -62,7 +68,8 @@ def get_options_dict(n_epochs=None,
         "restore": restore,
         "restore_resnet_features": restore_resnet_features,
         "original_transnet": original_transnet,
-        "transition_only_dataset": transition_only_dataset
+        "transition_only_trn_files": transition_trn_files_ if transition_only_trn_files is not None else None,
+        "transition_only_data_fraction": transition_only_data_fraction
     }
 
 
@@ -281,10 +288,15 @@ if __name__ == "__main__":
     gin.parse_config_file(args.config)
     options = get_options_dict()
 
-    if options["transition_only_dataset"]:
-        trn_ds = input_processing.train_transition_pipeline(options["trn_files"])
-    else:
-        trn_ds = input_processing.train_pipeline(options["trn_files"]) if len(options["trn_files"]) > 0 else None
+    trn_ds = input_processing.train_pipeline(options["trn_files"]) if len(options["trn_files"]) > 0 else None
+    if options["transition_only_trn_files"] is not None:
+        trn_ds_ = input_processing.train_transition_pipeline(options["transition_only_trn_files"])
+        if trn_ds is not None:
+            frac = options["transition_only_data_fraction"]
+            trn_ds = tf.data.experimental.sample_from_datasets([trn_ds, trn_ds_], weights=[1 - frac, frac])
+        else:
+            trn_ds = trn_ds_
+
     tst_ds = [(name, input_processing.test_pipeline(files))
               for name, files in options["tst_files"].items()]
 
