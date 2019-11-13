@@ -82,8 +82,8 @@ def parse_train_transition_sample(sample,
     scene = tf.cast(scene, dtype=tf.float32)
     scene = augment_shot(scene)
 
-    one_hot = tf.reshape(one_hot[shot_start:shot_end], [shot_len])
-    many_hot = tf.reshape(many_hot[shot_start:shot_end], [shot_len])
+    one_hot = tf.cast(tf.reshape(one_hot[shot_start:shot_end], [shot_len]), tf.int32)
+    many_hot = tf.cast(tf.reshape(many_hot[shot_start:shot_end], [shot_len]), tf.int32)
 
     return scene, one_hot, many_hot
 
@@ -123,11 +123,11 @@ def parse_train_sample(sample,
             start = augment_shot(start, up_down_flip_prob=0., left_right_flip_prob=0.)
             return tf.concat([start, end], axis=0)
 
-        shot = tf.cond(tf.random.uniform([]) < sudden_color_change_prob,
-                       lambda: color_change(shot), lambda: shot)
+        scene = tf.cond(tf.random.uniform([]) < sudden_color_change_prob,
+                        lambda: color_change(scene), lambda: scene)
 
     if spacial_augmentation:
-        scene = augment_shot_spacial(augment_shot, frame_width, frame_height)
+        scene = augment_shot_spacial(scene, frame_width, frame_height)
 
     scene = augment_shot(scene)
     return scene, tf.shape(scene)[0]  # [<SHOT_LENGTH, IMAGE_HEIGHT, IMAGE_WIDTH, 3]
