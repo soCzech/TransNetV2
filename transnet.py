@@ -16,6 +16,7 @@ class TransNetV2(tf.keras.Model):
                  use_mean_pooling=False,
                  use_convex_comb_reg=False,
                  dropout_rate=None,
+                 use_resnet_like_top=False,
                  name="TransNet"):
         super(TransNetV2, self).__init__(name=name)
 
@@ -29,11 +30,25 @@ class TransNetV2(tf.keras.Model):
         self.convex_comb_reg = ConvexCombinationRegularization() if use_convex_comb_reg else None
         self.dropout = tf.keras.layers.Dropout(dropout_rate) if dropout_rate is not None else None
 
+        self.resnet_like_top = use_resnet_like_top
+        if self.resnet_like_top:
+            self.resnet_like_top_conv = tf.keras.layers.Conv3D(filters=32, kernel_size=(3, 7, 7), strides=(1, 2, 2),
+                                                               padding="SAME", use_bias=False,
+                                                               name="resnet_like_top/conv")
+            self.resnet_like_top_bn = tf.keras.layers.BatchNormalization(name="resnet_like_top/bn")
+            self.resnet_like_top_max_pool = tf.keras.layers.MaxPooling3D(pool_size=(1, 3, 3), strides=(1, 2, 2),
+                                                                         padding="SAME")
+
     def call(self, inputs, training=False):
         out_dict = {}
 
         x = inputs
         x = self.resnet_layers(x, training=training)
+
+        if self.resnet_like_top:
+            x = self.resnet_like_top_conv(x)
+            x = self.resnet_like_top_bn(x)
+            x = self.resnet_like_top_max_pool(x)
 
         block_features = []
         for block in self.blocks:
