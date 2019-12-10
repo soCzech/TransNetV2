@@ -1,3 +1,4 @@
+import gin
 import numpy as np
 import tensorflow as tf
 
@@ -162,3 +163,83 @@ class ResNetBlock(tf.keras.layers.Layer):
         x += shortcut
 
         return tf.nn.relu(x)
+
+
+@gin.configurable(blacklist=["name"])
+class C3DConvolutions(tf.keras.Model):
+    # C3D model for UCF101
+    # https://github.com/tqvinhcs/C3D-tensorflow/blob/master/m_c3d.py#L63
+
+    def __init__(self, weights=None, restore_from=None, name="C3DConvolutions"):
+        super(C3DConvolutions, self).__init__(name=name)
+        if restore_from is not None:
+            weights = self.get_weights(restore_from)
+        elif weights is None:
+            weights = [None] * 16
+
+        def conv(filters, kernel_weights, bias_weights):
+            return tf.keras.layers.Conv3D(filters, kernel_size=3, strides=1, padding="SAME", activation=tf.nn.relu,
+                                          kernel_initializer=tf.constant_initializer(kernel_weights) \
+                                              if kernel_weights is not None else "glorot_uniform",
+                                          bias_initializer=tf.constant_initializer(bias_weights) \
+                                              if bias_weights is not None else "zeros")
+
+        self.conv_layers = [
+            conv(f, ker_init, bias_init) for f, ker_init, bias_init in [
+                (64, weights[0], weights[1]),
+                (128, weights[2], weights[3]),
+                (256, weights[4], weights[5]),
+                (256, weights[6], weights[7]),
+                (512, weights[8], weights[9]),
+                (512, weights[10], weights[11]),
+                (512, weights[12], weights[13]),
+                (512, weights[14], weights[15])
+            ]
+        ]
+        self.max_pooling = tf.keras.layers.MaxPool3D(pool_size=(1, 2, 2), strides=(1, 2, 2), padding="SAME")
+
+    def call(self, inputs, training=False):
+        x = inputs - 96.6
+        print(x.shape)
+        x = self.conv_layers[0](x)
+        x = self.max_pooling(x)
+        print(x.shape)
+        x = self.conv_layers[1](x)
+        x = self.max_pooling(x)
+        print(x.shape)
+        x = self.conv_layers[2](x)
+        x = self.conv_layers[3](x)
+        x = self.max_pooling(x)
+        print(x.shape)
+        x = self.conv_layers[4](x)
+        x = self.conv_layers[5](x)
+        x = self.max_pooling(x)
+        print(x.shape)
+        x = self.conv_layers[6](x)
+        x = self.conv_layers[7](x)
+        x = self.max_pooling(x)
+        print(x.shape)
+        return x
+
+    @staticmethod
+    def get_weights(filename):
+        import scipy.io as sio
+        return sio.loadmat(filename, squeeze_me=True)['weights']
+
+
+@gin.configurable(blacklist=["name"])
+class C3DNet(tf.keras.Model):
+
+    def __init__(self, D=256, name="C3DNet"):
+        super(C3DNet, self).__init__(name=name)
+        self.convs = C3DConvolutions()
+        self.fc1 = tf.keras.layers.Dense(D, activation=tf.nn.relu)
+        self.cls_layer1 = tf.keras.layers.Dense(1, activation=None)
+
+    def call(self, inputs, training=False):
+        x = self.convs(inputs, training=training)
+        x = tf.math.reduce_mean(x, axis=[2, 3])
+        x = self.fc1(x)
+        x = self.cls_layer1(x)
+
+        return x

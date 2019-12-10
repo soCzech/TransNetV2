@@ -27,7 +27,8 @@ def get_options_dict(n_epochs=None,
                      original_transnet=False,
                      transition_only_trn_files=None,
                      create_dir_and_summaries=True,
-                     transition_only_data_fraction=0.3):
+                     transition_only_data_fraction=0.3,
+                     c3d_net=False):
     trn_files_ = []
     for fn in trn_files:
         trn_files_.extend(glob.glob(fn))
@@ -69,7 +70,8 @@ def get_options_dict(n_epochs=None,
         "restore_resnet_features": restore_resnet_features,
         "original_transnet": original_transnet,
         "transition_only_trn_files": transition_trn_files_ if transition_only_trn_files is not None else None,
-        "transition_only_data_fraction": transition_only_data_fraction
+        "transition_only_data_fraction": transition_only_data_fraction,
+        "c3d_net": c3d_net
     }
 
 
@@ -303,6 +305,9 @@ if __name__ == "__main__":
     if options["original_transnet"]:
         net = models.OriginalTransNet()
         logit_fc = lambda x: tf.nn.softmax(x)[:, :, 1]
+    elif options["c3d_net"]:
+        net = models.C3DNet()
+        logit_fc = tf.sigmoid
     else:
         net = transnet.TransNetV2()
         logit_fc = tf.sigmoid

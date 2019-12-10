@@ -17,6 +17,7 @@ options.test_only = False
 options.restore = None
 options.restore_resnet_features = None
 options.original_transnet = False
+options.c3d_net = False
 
 training.optimizer = @tf.keras.optimizers.Adam
 training.log_freq = 200
@@ -127,3 +128,9 @@ FrameSimilarity.stop_gradient = False
 ConvexCombinationRegularization.filters = 32
 ConvexCombinationRegularization.delta_scale = 10.
 ConvexCombinationRegularization.loss_weight = 0.01
+
+
+# C3D Config
+#############
+C3DConvolutions.restore_from = "./models/c3d_ucf101_tf.mat"
+C3DNet.D = 256
