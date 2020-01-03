@@ -54,7 +54,7 @@ def get_options_dict(n_epochs=None,
         with summary_writer.as_default():
             tf.summary.text("config", config_str, step=0)
         with open(os.path.join(log_dir, "config.gin"), "w") as f:
-            f.write(config_str.replace("\n\n", "\n"))
+            f.write(gin.config_str())
 
     print("\n{}\n".format(log_name.upper()))
 

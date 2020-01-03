@@ -11,7 +11,7 @@ options.log_name = "test"
 options.trn_files = ["/glob/path/*.tfrecord"]
 options.tst_files = {"name": ["/glob/path/*.tfrecord"]}
 options.transition_only_trn_files = None
-options.transition_only_data_fraction = 0.3
+options.transition_only_data_fraction = 0.3 # meaningful if transition_only_trn_files is not None
 options.input_shape = [%shot_len, %frame_height, %frame_width, 3]
 options.test_only = False
 options.restore = None
@@ -19,17 +19,18 @@ options.restore_resnet_features = None
 options.original_transnet = False
 options.c3d_net = False
 
-training.optimizer = @tf.keras.optimizers.Adam
 training.log_freq = 200
 training.grad_clipping = 10.
 training.n_batches_per_epoch = None
 training.evaluate_on_middle_frames_only = False
+training.optimizer = @tf.keras.optimizers.Adam
 tf.keras.optimizers.Adam.learning_rate = 0.001
 
 loss.transition_weight = 1.
 loss.many_hot_loss_weight = 0.
 loss.l2_loss_weight = 0.
 loss.dynamic_weight = None
+
 
 # Dataset Config
 #################
@@ -60,7 +61,7 @@ parse_train_transition_sample.frame_height = %frame_height
 augment_shot.up_down_flip_prob = 0.2
 augment_shot.left_right_flip_prob = 0.5
 augment_shot.adjust_saturation = True
-augment_shot.adjust_contrast = False # can destroy the image
+augment_shot.adjust_contrast = True
 augment_shot.adjust_brightness = True
 augment_shot.adjust_hue = True
 
@@ -79,8 +80,8 @@ concat_shots.cutout_prob = 0.3
 # affected by: concat_shots.cutout_prob
 cutout.min_width_fraction = 0.3
 cutout.min_height_fraction = 0.3
-cutout.max_width_fraction = 0.8
-cutout.max_height_fraction = 0.8
+cutout.max_width_fraction = 0.6
+cutout.max_height_fraction = 0.6
 cutout.cutout_color = None # [0., 255.], None is random
 
 test_pipeline.shot_len = %shot_len
