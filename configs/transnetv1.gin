@@ -76,6 +76,12 @@ augment_shot.adjust_saturation = False
 augment_shot.adjust_contrast = False
 augment_shot.adjust_brightness = False
 augment_shot.adjust_hue = False
+augment_shot.equalize_prob = 0.
+augment_shot.posterize_prob = 0.
+augment_shot.posterize_min_bits = 2
+augment_shot.color_prob = 0.
+augment_shot.color_min_val = 0.3
+augment_shot.color_max_val = 1.7
 
 augment_shot_spacial.random_shake_prob = 0.3
 augment_shot_spacial.random_shake_max_size = 15

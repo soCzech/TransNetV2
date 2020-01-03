@@ -173,7 +173,13 @@ def augment_shot(shot,
                  adjust_saturation=True,
                  adjust_contrast=True,
                  adjust_brightness=True,
-                 adjust_hue=True):
+                 adjust_hue=True,
+                 equalize_prob=0.,
+                 posterize_prob=0.,
+                 posterize_min_bits=2,
+                 color_prob=0.,
+                 color_min_val=0.3,
+                 color_max_val=1.7):
 
     shot = tf.cond(tf.random.uniform([]) < up_down_flip_prob,
                    lambda: tf.image.flip_up_down(shot), lambda: shot)
@@ -193,6 +199,21 @@ def augment_shot(shot,
         shot = tf.image.adjust_hue(shot, delta=tf.random.uniform([], minval=-0.1, maxval=0.1))
 
     shot = tf.clip_by_value(shot, 0., 1.) * 255.
+
+    if color_prob != 0.:
+        factor = tf.random.uniform([], minval=color_min_val, maxval=color_max_val)
+        shot = tf.cond(tf.random.uniform([]) < color_prob,
+                       lambda: pil_color(shot, factor), lambda: shot)
+
+    if equalize_prob != 0. or posterize_prob != 0.:
+        shot = tf.cast(shot, tf.uint8)
+        shot = tf.cond(tf.random.uniform([]) < equalize_prob,
+                       lambda: pil_equalize(shot), lambda: shot)
+
+        bits = tf.random.uniform([], minval=posterize_min_bits, maxval=7, dtype=tf.int32)
+        shot = tf.cond(tf.random.uniform([]) < posterize_prob,
+                       lambda: pil_posterize(shot, bits=tf.cast(bits, tf.uint8)), lambda: shot)
+        shot = tf.cast(shot, tf.float32)
     return shot
 
 
@@ -300,6 +321,64 @@ def cutout(shot,
     mask = tf.pad(tf.zeros([1, height, width, 1]),
                   [[0, 0], [top, frame_height - bottom], [left, frame_width - right], [0, 0]], constant_values=1.)
     return random_patch + shot * mask
+
+
+@tf.function
+def pil_equalize(shot):
+    # Implements Equalize function from PIL using TF ops.
+    # https://github.com/tensorflow/tpu/blob/master/models/official/efficientnet/autoaugment.py
+    def scale_channel(im, c):
+        im = tf.cast(im[:, :, c], tf.int32)
+        # Compute the histogram of the image channel.
+        histo = tf.histogram_fixed_width(im, [0, 255], nbins=256)
+
+        # For the purposes of computing the step, filter out the nonzeros.
+        nonzero = tf.where(tf.not_equal(histo, 0))
+        nonzero_histo = tf.reshape(tf.gather(histo, nonzero), [-1])
+        step = (tf.reduce_sum(nonzero_histo) - nonzero_histo[-1]) // 255
+
+        def build_lut(histo, step):
+            # Compute the cumulative sum, shifting by step // 2 and then normalization by step.
+            lut = (tf.cumsum(histo) + (step // 2)) // step
+            # Shift lut, prepending with 0.
+            lut = tf.concat([[0], lut[:-1]], 0)
+            # Clip the counts to be in range. This is done in the C code for image.point.
+            return tf.clip_by_value(lut, 0, 255)
+
+        # If step is zero, return the original image.
+        # Otherwise, build lut from the full histogram and step and then index from it.
+        result = tf.cond(tf.equal(step, 0),
+                         lambda: im,
+                         lambda: tf.gather(build_lut(histo, step), im))
+
+        return tf.cast(result, tf.uint8)
+
+    # Assumes RGB for now. Scales each channel independently and then stacks the result.
+    l, h, w, c = tf.shape(shot)[0], tf.shape(shot)[1], tf.shape(shot)[2], tf.shape(shot)[3]
+
+    shot = tf.reshape(shot, [l * h, w, c])
+    s1 = scale_channel(shot, 0)
+    s2 = scale_channel(shot, 1)
+    s3 = scale_channel(shot, 2)
+    shot = tf.stack([s1, s2, s3], 2)
+    shot = tf.reshape(shot, [l, h, w, c])
+    return shot
+
+
+def pil_posterize(image, bits):
+    # Equivalent of PIL Posterize.
+    # https://github.com/tensorflow/tpu/blob/master/models/official/efficientnet/autoaugment.py
+    shift = 8 - bits
+    return tf.bitwise.left_shift(tf.bitwise.right_shift(image, shift), shift)
+
+
+def pil_color(shot, factor):
+    # Equivalent of PIL Color.
+    # https://github.com/tensorflow/tpu/blob/master/models/official/efficientnet/autoaugment.py
+    degenerate = tf.image.grayscale_to_rgb(tf.image.rgb_to_grayscale(shot))
+    difference = shot - degenerate
+    scaled = factor * difference
+    return tf.clip_by_value(degenerate + scaled, 0., 255.)
 
 
 @tf.function
