@@ -81,10 +81,11 @@ class TransNetV2(tf.keras.Model):
         return one_hot
 
 
-@gin.configurable(whitelist=["shortcut", "use_octave_conv", "pool_type"])
+@gin.configurable(whitelist=["shortcut", "use_octave_conv", "pool_type", "stochastic_depth_drop_prob"])
 class StackedDDCNNV2(tf.keras.layers.Layer):
 
-    def __init__(self, n_blocks, filters, shortcut=False, use_octave_conv=False, pool_type="max", name="StackedDDCNN"):
+    def __init__(self, n_blocks, filters, shortcut=False, use_octave_conv=False, pool_type="max",
+                 stochastic_depth_drop_prob=0., name="StackedDDCNN"):
         super(StackedDDCNNV2, self).__init__(name=name)
         assert pool_type == "max" or pool_type == "avg"
         if use_octave_conv and pool_type == "max":
@@ -101,6 +102,7 @@ class StackedDDCNNV2(tf.keras.layers.Layer):
         self.pool = tf.keras.layers.MaxPool3D(pool_size=(1, 2, 2)) if pool_type == "max" else \
             tf.keras.layers.AveragePooling3D(pool_size=(1, 2, 2))
         self.octave = use_octave_conv
+        self.stochastic_depth_drop_prob = stochastic_depth_drop_prob
 
     def call(self, inputs, training=False):
         x = inputs
@@ -113,7 +115,15 @@ class StackedDDCNNV2(tf.keras.layers.Layer):
             x = tf.concat([x[0], self.pool(x[1])], -1)
 
         if self.shortcut is not None:
-            x += self.shortcut(inputs)
+            shortcut = self.shortcut(inputs)
+            if self.stochastic_depth_drop_prob != 0.:
+                if training:
+                    x = tf.cond(tf.random.uniform([]) < self.stochastic_depth_drop_prob,
+                                lambda: shortcut, lambda: x + shortcut)
+                else:
+                    x = (1 - self.stochastic_depth_drop_prob) * x + shortcut
+            else:
+                x += shortcut
         x = tf.nn.relu(x)
 
         if not self.octave:

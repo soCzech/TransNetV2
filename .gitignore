@@ -3,3 +3,4 @@
 *.mp4
 *.pickle
 .idea
+.ipynb_checkpoints

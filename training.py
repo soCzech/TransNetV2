@@ -82,7 +82,8 @@ class Trainer:
                  optimizer=None,
                  log_freq=None,
                  grad_clipping=10.,
-                 n_batches_per_epoch=None):
+                 n_batches_per_epoch=None,
+                 evaluate_on_middle_frames_only=False):
         self.net = net
         self.summary_writer = summary_writer
         self.optimizer = optimizer() if optimizer is not None else None
@@ -93,6 +94,7 @@ class Trainer:
                                   ["loss/total", "loss/one_hot_loss", "loss/many_hot_loss", "loss/l2_loss",
                                    "loss/comb_reg"]])
         self.results = {}
+        self.evaluate_on_middle_frames_only = evaluate_on_middle_frames_only
 
     @gin.configurable("loss", blacklist=["one_hot_pred", "one_hot_gt", "many_hot_pred", "many_hot_gt", "reg_losses"])
     def compute_loss(self, one_hot_pred, one_hot_gt, many_hot_pred=None, many_hot_gt=None,
@@ -250,8 +252,13 @@ class Trainer:
                         tf.summary.trace_export(name="graph", step=0)
                         trace = False
 
-                one_hot_gt_list.extend(one_hot_gt.numpy().flatten().tolist())
-                one_hot_pred_list.extend(logit_fc(one_hot_pred).numpy().flatten().tolist())
+                if self.evaluate_on_middle_frames_only:
+                    x = int(one_hot_gt.shape[1] * 0.25)
+                    one_hot_gt_list.extend(one_hot_gt.numpy()[:, x:-x].flatten().tolist())
+                    one_hot_pred_list.extend(logit_fc(one_hot_pred).numpy()[:, x:-x].flatten().tolist())
+                else:
+                    one_hot_gt_list.extend(one_hot_gt.numpy().flatten().tolist())
+                    one_hot_pred_list.extend(logit_fc(one_hot_pred).numpy().flatten().tolist())
 
                 print("\r", i.numpy(), end="")
                 if i != 0 or save_visualization_to is None:

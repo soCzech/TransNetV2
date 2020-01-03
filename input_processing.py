@@ -270,7 +270,8 @@ def cutout(shot,
            min_width_fraction=1/4,
            min_height_fraction=1/4,
            max_width_fraction=2/3,
-           max_height_fraction=2/3):
+           max_height_fraction=2/3,
+           cutout_color=None):
     frame_height, frame_width = tf.shape(shot)[1], tf.shape(shot)[2]
     frame_height_float, frame_width_float = tf.cast(frame_height, tf.float32), tf.cast(frame_width, tf.float32)
 
@@ -289,7 +290,11 @@ def cutout(shot,
     bottom = tf.minimum(top + height, frame_height)
     right = tf.minimum(left + width, frame_width)
 
-    t = tf.random.uniform([1, height, width, 3], 0, 255., dtype=tf.float32)
+    if cutout_color is not None:
+        t = tf.fill([1, height, width, 3], tf.constant(cutout_color, dtype=tf.float32))
+        # t = tf.zeros([1, height, width, 3], dtype=tf.float32) + cutout_color
+    else:
+        t = tf.random.uniform([1, height, width, 3], 0, 255., dtype=tf.float32)
 
     random_patch = tf.pad(t, [[0, 0], [top, frame_height - bottom], [left, frame_width - right], [0, 0]])
     mask = tf.pad(tf.zeros([1, height, width, 1]),

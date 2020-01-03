@@ -23,6 +23,7 @@ training.optimizer = @tf.keras.optimizers.Adam
 training.log_freq = 200
 training.grad_clipping = 10.
 training.n_batches_per_epoch = None
+training.evaluate_on_middle_frames_only = False
 tf.keras.optimizers.Adam.learning_rate = 0.001
 
 loss.transition_weight = 1.
@@ -80,6 +81,7 @@ cutout.min_width_fraction = 0.3
 cutout.min_height_fraction = 0.3
 cutout.max_width_fraction = 0.8
 cutout.max_height_fraction = 0.8
+cutout.cutout_color = None # [0., 255.], None is random
 
 test_pipeline.shot_len = %shot_len
 test_pipeline.batch_size = 16
@@ -106,6 +108,7 @@ TransNetV2.use_resnet_like_top = False
 StackedDDCNNV2.shortcut = False
 StackedDDCNNV2.use_octave_conv = False
 StackedDDCNNV2.pool_type = "max"
+StackedDDCNNV2.stochastic_depth_drop_prob = 0.
 
 DilatedDCNNV2.batch_norm = False
 
