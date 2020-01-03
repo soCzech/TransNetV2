@@ -1,0 +1,152 @@
+# Global Config
+################
+
+shot_len = 100
+frame_width = 48
+frame_height = 27
+
+options.n_epochs = 5
+options.log_dir = "final-logs"
+# options.log_name = "transnetv1-iacc3"
+# options.trn_files = ["data/48x27/IACC3Random3000/*.tfrecord"]
+options.log_name = "transnetv1-clipshots"
+options.trn_files = [
+    "data/48x27/IACC3Random3000/*.tfrecord",
+    "data/48x27/ClipShotsTrain-Train/*.tfrecord",
+    "data/48x27/ClipShotsGradual/*.tfrecord"
+]
+options.tst_files = {
+    "clip_shots_val": ["data/48x27/ClipShotsTrain-Valid/*.tfrecord"],
+    "dissolves_20": ["data/48x27/ClipShotsTrain-validation/dissolves_20.tfrecord"],
+    "dissolves_60": ["data/48x27/ClipShotsTrain-validation/dissolves_60.tfrecord"],
+    "hardcuts": ["data/48x27/ClipShotsTrain-validation/hardcuts.tfrecord"],
+    "iacc100": ["data/48x27/IACC3Subset100/*.tfrecord"],
+}
+options.transition_only_trn_files = None
+options.transition_only_data_fraction = 0.3 # meaningful if transition_only_trn_files is not None
+options.input_shape = [%shot_len, %frame_height, %frame_width, 3]
+options.test_only = False
+options.restore = None
+options.restore_resnet_features = None
+options.original_transnet = False
+options.c3d_net = False
+
+training.log_freq = 200
+training.grad_clipping = 10.
+training.n_batches_per_epoch = 1500
+training.evaluate_on_middle_frames_only = True
+training.optimizer = @tf.keras.optimizers.Adam
+tf.keras.optimizers.Adam.learning_rate = 0.001
+
+loss.transition_weight = 1.
+loss.many_hot_loss_weight = 0.
+loss.l2_loss_weight = 0.
+loss.dynamic_weight = None
+
+
+# Dataset Config
+#################
+
+train_pipeline.shuffle_buffer = 100
+train_pipeline.shot_len = %shot_len
+train_pipeline.frame_width = %frame_width
+train_pipeline.frame_height = %frame_height
+train_pipeline.batch_size = 16
+train_pipeline.repeat = True
+
+parse_train_sample.shot_len = %shot_len
+parse_train_sample.frame_width = %frame_width
+parse_train_sample.frame_height = %frame_height
+parse_train_sample.sudden_color_change_prob = 0.
+parse_train_sample.spacial_augmentation = False
+parse_train_sample.original_width = None
+parse_train_sample.original_height = None
+
+train_transition_pipeline.shuffle_buffer = 100
+train_transition_pipeline.batch_size = 16
+train_transition_pipeline.repeat = False
+
+parse_train_transition_sample.shot_len = %shot_len
+parse_train_transition_sample.frame_width = %frame_width
+parse_train_transition_sample.frame_height = %frame_height
+
+augment_shot.up_down_flip_prob = 0
+augment_shot.left_right_flip_prob = 0
+augment_shot.adjust_saturation = False
+augment_shot.adjust_contrast = False
+augment_shot.adjust_brightness = False
+augment_shot.adjust_hue = False
+
+augment_shot_spacial.random_shake_prob = 0.3
+augment_shot_spacial.random_shake_max_size = 15
+augment_shot_spacial.clip_left_right = 20
+augment_shot_spacial.clip_top_bottom = 10
+
+concat_shots.shot_len = %shot_len
+concat_shots.color_transfer_prob = 0.
+concat_shots.transition_min_len = 2
+concat_shots.transition_max_len = 30
+concat_shots.hard_cut_prob = 0.5
+concat_shots.cutout_prob = 0.
+
+# affected by: concat_shots.cutout_prob
+cutout.min_width_fraction = 0.3
+cutout.min_height_fraction = 0.3
+cutout.max_width_fraction = 0.6
+cutout.max_height_fraction = 0.6
+cutout.cutout_color = None # [0., 255.], None is random
+
+test_pipeline.shot_len = %shot_len
+test_pipeline.batch_size = 16
+
+parse_test_sample.frame_width = %frame_width
+parse_test_sample.frame_height = %frame_height
+
+
+# TransNet Config
+##################
+
+TransNetV2.F = 16
+TransNetV2.L = 3
+TransNetV2.S = 2
+TransNetV2.D = 256
+TransNetV2.use_resnet_features = False
+TransNetV2.use_many_hot_targets = False
+TransNetV2.use_frame_similarity = False
+TransNetV2.use_mean_pooling = False
+TransNetV2.use_convex_comb_reg = False
+TransNetV2.dropout_rate = None
+TransNetV2.use_resnet_like_top = False
+
+StackedDDCNNV2.shortcut = False
+StackedDDCNNV2.use_octave_conv = False
+StackedDDCNNV2.pool_type = "max"
+StackedDDCNNV2.stochastic_depth_drop_prob = 0.
+
+DilatedDCNNV2.batch_norm = False
+
+Conv3DConfigurable.separable = False
+Conv3DConfigurable.kernel_initializer = "glorot_uniform"
+
+# affected by: StackedDDCNNV2.use_octave_conv
+OctConv3D.alpha = 0.25
+
+# affected by: TransNetV2.use_resnet_features
+ResNetFeatures.trainable = False
+
+# affected by: TransNetV2.use_frame_similarity
+FrameSimilarity.similarity_dim = 128
+FrameSimilarity.lookup_window = 101
+FrameSimilarity.output_dim = 64
+FrameSimilarity.stop_gradient = False
+
+# affected by: TransNetV2.use_convex_comb_reg
+ConvexCombinationRegularization.filters = 32
+ConvexCombinationRegularization.delta_scale = 10.
+ConvexCombinationRegularization.loss_weight = 0.01
+
+
+# C3D Config
+#############
+C3DConvolutions.restore_from = None
+C3DNet.D = 256
