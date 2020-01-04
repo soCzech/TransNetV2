@@ -21,7 +21,8 @@ class TransNetV2(tf.keras.Model):
         super(TransNetV2, self).__init__(name=name)
 
         self.resnet_layers = ResNetFeatures() if use_resnet_features else (lambda x, training=False: x / 255.)
-        self.blocks = [StackedDDCNNV2(n_blocks=S, filters=F * 2**i, name="SDDCNN_{:d}".format(i + 1)) for i in range(L)]
+        self.blocks = [StackedDDCNNV2(n_blocks=S, filters=F, stochastic_depth_drop_prob=0., name="SDDCNN_1")]
+        self.blocks += [StackedDDCNNV2(n_blocks=S, filters=F * 2**i, name="SDDCNN_{:d}".format(i + 1)) for i in range(1, L)]
         self.fc1 = tf.keras.layers.Dense(D, activation=tf.nn.relu)
         self.cls_layer1 = tf.keras.layers.Dense(1, activation=None)
         self.cls_layer2 = tf.keras.layers.Dense(1, activation=None) if use_many_hot_targets else None

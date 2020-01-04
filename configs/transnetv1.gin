@@ -5,6 +5,10 @@ shot_len = 100
 frame_width = 48
 frame_height = 27
 
+bi_tempered_loss = False
+bi_tempered_loss_temp1 = 1.
+bi_tempered_loss_temp2 = 1.
+
 options.n_epochs = 5
 options.log_dir = "final-logs"
 # options.log_name = "transnetv1-iacc3"
@@ -30,6 +34,8 @@ options.restore = None
 options.restore_resnet_features = None
 options.original_transnet = False
 options.c3d_net = False
+options.bi_tempered_loss = %bi_tempered_loss
+options.bi_tempered_loss_temp2 = %bi_tempered_loss_temp2
 
 training.log_freq = 200
 training.grad_clipping = 10.
@@ -42,6 +48,9 @@ loss.transition_weight = 1.
 loss.many_hot_loss_weight = 0.
 loss.l2_loss_weight = 0.
 loss.dynamic_weight = None
+loss.bi_tempered_loss = %bi_tempered_loss
+loss.bi_tempered_loss_temp1 = %bi_tempered_loss_temp1
+loss.bi_tempered_loss_temp2 = %bi_tempered_loss_temp2
 
 
 # Dataset Config
@@ -127,7 +136,7 @@ TransNetV2.use_resnet_like_top = False
 StackedDDCNNV2.shortcut = False
 StackedDDCNNV2.use_octave_conv = False
 StackedDDCNNV2.pool_type = "max"
-StackedDDCNNV2.stochastic_depth_drop_prob = 0.
+StackedDDCNNV2.stochastic_depth_drop_prob = 0. # StackedDDCNNV2.shortcut must be True
 
 DilatedDCNNV2.batch_norm = False
 

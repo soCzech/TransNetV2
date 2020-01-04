@@ -1,0 +1,14 @@
+include "./configs/transnetv1.gin"
+
+options.log_name = "transnetv1-regularization-iacc3"
+options.trn_files = ["data/48x27/IACC3Random3000/*.tfrecord"]
+# options.log_name = "transnetv1-regularization-clipshots"
+# options.trn_files = [
+#     "data/48x27/IACC3Random3000/*.tfrecord",
+#     "data/48x27/ClipShotsTrain-Train/*.tfrecord",
+#     "data/48x27/ClipShotsGradual/*.tfrecord"
+# ]
+
+loss.l2_loss_weight = 0.0001
+
+TransNetV2.dropout_rate = 0.5
