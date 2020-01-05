@@ -1,0 +1,36 @@
+include "./configs/transnetv1-regularization.gin"
+
+options.log_name = "transnetv1-augmentation-iacc3"
+options.trn_files = ["data/48x27/IACC3Random3000/*.tfrecord"]
+# options.log_name = "transnetv1-augmentation-clipshots"
+# options.trn_files = [
+#     "data/48x27/IACC3Random3000/*.tfrecord",
+#     "data/48x27/ClipShotsTrain-Train/*.tfrecord",
+#     "data/48x27/ClipShotsGradual/*.tfrecord"
+# ]
+
+augment_shot.up_down_flip_prob = 0.1
+augment_shot.left_right_flip_prob = 0.5
+augment_shot.adjust_saturation = True
+augment_shot.adjust_contrast = True
+augment_shot.adjust_brightness = True
+augment_shot.adjust_hue = True
+augment_shot.equalize_prob = 0.1
+augment_shot.posterize_prob = 0.25
+augment_shot.posterize_min_bits = 2
+augment_shot.color_prob = 0.25
+augment_shot.color_min_val = 0.3
+augment_shot.color_max_val = 1.7
+
+concat_shots.color_transfer_prob = 0.3
+concat_shots.transition_min_len = 2
+concat_shots.transition_max_len = 60
+concat_shots.hard_cut_prob = 0.3
+concat_shots.cutout_prob = 0.3
+concat_shots.advanced_shot_trans_prob = 0.25
+
+cutout.min_width_fraction = 0.3
+cutout.min_height_fraction = 0.3
+cutout.max_width_fraction = 0.6
+cutout.max_height_fraction = 0.6
+cutout.cutout_color = 120. # [0., 255.], None is random

@@ -226,7 +226,8 @@ def concat_shots(shots,
                  transition_min_len=2,
                  transition_max_len=60,
                  hard_cut_prob=0.4,
-                 cutout_prob=0.3):
+                 cutout_prob=0.3,
+                 advanced_shot_trans_prob=0.):
     assert transition_min_len % 2 == 0 and transition_min_len >= 2, "`transition_min_len` must be even"
     assert transition_max_len % 2 == 0, "`transition_max_len` must be even"
     shot1 = shots[0][:lens[0]]
@@ -259,13 +260,12 @@ def concat_shots(shots,
     ), [shot_len])
 
     # switch between hard cut and dissolve
-    transition, many_hot_gt = tf.cond(tf.random.uniform([]) < hard_cut_prob,
-                                      lambda: (hard_cut, one_hot_gt),
-                                      lambda: (dissolve, dissolve_trans))
+    is_dissolve = tf.random.uniform([]) > hard_cut_prob
+    transition, many_hot_gt = tf.cond(is_dissolve,
+                                      lambda: (dissolve, dissolve_trans),
+                                      lambda: (hard_cut, one_hot_gt))
 
-    # add together two shots
-    transition = tf.reshape(transition, [shot_len, 1, 1, 1])
-
+    # pad shots to full length if they are smaller
     many_hot_gt_indices = tf.cast(tf.where(many_hot_gt), tf.int32)
     shot1_min_len = tf.reduce_max(many_hot_gt_indices)
     shot2_min_len = shot_len - tf.reduce_min(many_hot_gt_indices)
@@ -278,11 +278,58 @@ def concat_shots(shots,
     shot2_pad_start = tf.maximum(shot_len - (lens[1] + shot2_pad_end), 0)
     shot2 = tf.pad(shot2, [[shot2_pad_start, shot2_pad_end], [0, 0], [0, 0], [0, 0]])
 
-    shot = shot1 * transition + shot2 * (1 - transition)  # [SHOT_LENGTH, IMAGE_HEIGHT, IMAGE_WIDTH, 3]
+    def basic_shot_transitions(shot1, shot2, trans_interpolation):
+        # add together two shots
+        trans_interpolation = tf.reshape(trans_interpolation, [tf.shape(shot1)[0], 1, 1, 1])
+        return shot1 * trans_interpolation + shot2 * (1 - trans_interpolation)
+
+    # [SHOT_LENGTH, IMAGE_HEIGHT, IMAGE_WIDTH, 3]
+    shot = tf.cond(tf.logical_and(is_dissolve, tf.random.uniform([]) < advanced_shot_trans_prob),
+                   lambda: advanced_shot_transitions(shot1, shot2, transition),
+                   lambda: basic_shot_transitions(shot1, shot2, transition))
 
     shot = tf.cond(tf.random.uniform([]) < cutout_prob,
                    lambda: cutout(shot), lambda: shot)
     return shot, one_hot_gt, many_hot_gt, tf.maximum(shot1_pad_start, shot2_pad_end) == 0
+
+
+@tf.function
+def advanced_shot_transitions(shot1, shot2, trans_interpolation):
+    # transition in horizontal or vertical direction
+    flip_wh = tf.cast(tf.random.uniform([], maxval=2, dtype=tf.int32), tf.bool)
+    shot1, shot2 = tf.cond(flip_wh,
+                           lambda: (tf.transpose(shot1, [0, 2, 1, 3]), tf.transpose(shot2, [0, 2, 1, 3])),
+                           lambda: (shot1, shot2))
+
+    # transition from top to bottom or from bottom to top
+    flip_fromto = tf.cast(tf.random.uniform([], maxval=2, dtype=tf.int32), tf.bool)
+    trans_interpolation = tf.cond(flip_fromto, lambda: trans_interpolation, lambda: 1 - trans_interpolation)
+
+    shot_len, shot_height, shot_width = tf.shape(shot1)[0], tf.shape(shot1)[1], tf.shape(shot1)[2]
+    # compute gather indices
+    time_indices = tf.tile(tf.reshape(tf.range(shot_len), [-1, 1]), [1, shot_height])
+    initial_rows = tf.tile(tf.reshape(tf.range(shot_height), [1, -1]), [shot_len, 1])
+    row_additions = tf.cast(tf.reshape(trans_interpolation, [-1, 1]) * tf.cast(shot_height, tf.float32), tf.int32)
+    indices = tf.stack([time_indices, initial_rows + row_additions], -1)
+
+    # makes the shot move
+    shot1_out = tf.gather_nd(tf.concat([shot1, tf.zeros_like(shot1)], 1), indices)
+    shot2_out = tf.gather_nd(tf.concat([tf.zeros_like(shot2), shot2], 1), indices)
+    # makes the shot stationary
+    shot1_mask = tf.gather_nd(tf.concat([tf.ones_like(shot1), tf.zeros_like(shot1)], 1), indices)
+    shot2_mask = tf.gather_nd(tf.concat([tf.zeros_like(shot2), tf.ones_like(shot2)], 1), indices)
+
+    # select between moving or stationary variant for each shot
+    shot1 = tf.cond(tf.cast(tf.random.uniform([], maxval=2, dtype=tf.int32), tf.bool),
+                    lambda: shot1_out, lambda: shot1 * shot1_mask)
+    shot2 = tf.cond(tf.cast(tf.random.uniform([], maxval=2, dtype=tf.int32), tf.bool),
+                    lambda: shot2_out, lambda: shot2 * shot2_mask)
+
+    result = shot1 + shot2
+
+    # flip back if needed
+    result = tf.cond(flip_wh, lambda: tf.transpose(result, [0, 2, 1, 3]), lambda: result)
+    return result
 
 
 @tf.function

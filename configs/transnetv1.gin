@@ -11,14 +11,14 @@ bi_tempered_loss_temp2 = 1.
 
 options.n_epochs = 5
 options.log_dir = "final-logs"
-# options.log_name = "transnetv1-iacc3"
-# options.trn_files = ["data/48x27/IACC3Random3000/*.tfrecord"]
-options.log_name = "transnetv1-clipshots"
-options.trn_files = [
-    "data/48x27/IACC3Random3000/*.tfrecord",
-    "data/48x27/ClipShotsTrain-Train/*.tfrecord",
-    "data/48x27/ClipShotsGradual/*.tfrecord"
-]
+options.log_name = "transnetv1-iacc3"
+options.trn_files = ["data/48x27/IACC3Random3000/*.tfrecord"]
+# options.log_name = "transnetv1-clipshots"
+# options.trn_files = [
+#     "data/48x27/IACC3Random3000/*.tfrecord",
+#     "data/48x27/ClipShotsTrain-Train/*.tfrecord",
+#     "data/48x27/ClipShotsGradual/*.tfrecord"
+# ]
 options.tst_files = {
     "clip_shots_val": ["data/48x27/ClipShotsTrain-Valid/*.tfrecord"],
     "dissolves_20": ["data/48x27/ClipShotsTrain-validation/dissolves_20.tfrecord"],
@@ -103,6 +103,7 @@ concat_shots.transition_min_len = 2
 concat_shots.transition_max_len = 30
 concat_shots.hard_cut_prob = 0.5
 concat_shots.cutout_prob = 0.
+concat_shots.advanced_shot_trans_prob = 0.
 
 # affected by: concat_shots.cutout_prob
 cutout.min_width_fraction = 0.3
