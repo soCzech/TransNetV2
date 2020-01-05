@@ -12,6 +12,7 @@ import transnet
 import metrics_utils
 import input_processing
 import visualization_utils
+from bi_tempered_loss import bi_tempered_binary_logistic_loss, tempered_sigmoid
 
 
 @gin.configurable("options", blacklist=["create_dir_and_summaries"])
@@ -28,7 +29,9 @@ def get_options_dict(n_epochs=None,
                      transition_only_trn_files=None,
                      create_dir_and_summaries=True,
                      transition_only_data_fraction=0.3,
-                     c3d_net=False):
+                     c3d_net=False,
+                     bi_tempered_loss=False,
+                     bi_tempered_loss_temp2=1.):
     trn_files_ = []
     for fn in trn_files:
         trn_files_.extend(glob.glob(fn))
@@ -71,7 +74,9 @@ def get_options_dict(n_epochs=None,
         "original_transnet": original_transnet,
         "transition_only_trn_files": transition_trn_files_ if transition_only_trn_files is not None else None,
         "transition_only_data_fraction": transition_only_data_fraction,
-        "c3d_net": c3d_net
+        "c3d_net": c3d_net,
+        "bi_tempered_loss": bi_tempered_loss,
+        "bi_tempered_loss_temp2": bi_tempered_loss_temp2
     }
 
 
@@ -102,14 +107,23 @@ class Trainer:
                      many_hot_loss_weight=0.,
                      l2_loss_weight=0.,
                      dynamic_weight=None,
-                     reg_losses=None):
+                     reg_losses=None,
+                     bi_tempered_loss=False,
+                     bi_tempered_loss_temp1=1.,
+                     bi_tempered_loss_temp2=1.):
         assert not (dynamic_weight and transition_weight != 1)
 
         one_hot_pred = one_hot_pred[:, :, 0]
 
         with tf.name_scope("losses"):
-            one_hot_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=one_hot_pred,
-                                                                   labels=tf.cast(one_hot_gt, tf.float32))
+            if bi_tempered_loss:
+                one_hot_loss = bi_tempered_binary_logistic_loss(activations=one_hot_pred,
+                                                                labels=tf.cast(one_hot_gt, tf.float32),
+                                                                t1=bi_tempered_loss_temp1, t2=bi_tempered_loss_temp2,
+                                                                label_smoothing=0.)
+            else:
+                one_hot_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=one_hot_pred,
+                                                                       labels=tf.cast(one_hot_gt, tf.float32))
             if transition_weight != 1:
                 one_hot_loss *= 1 + tf.cast(one_hot_gt, tf.float32) * (transition_weight - 1)
             elif dynamic_weight is not None:
@@ -178,6 +192,7 @@ class Trainer:
 
         with self.summary_writer.as_default():
             tf.summary.scalar("grads/norm", grad_norm, step=self.optimizer.iterations)
+            tf.summary.scalar("loss/immediate/total", total_loss, step=self.optimizer.iterations)
 
         if not run_summaries:
             return
@@ -199,7 +214,7 @@ class Trainer:
             metric.reset_states()
 
         for i, (frame_sequence, one_hot_gt, many_hot_gt) in dataset.enumerate():
-            if i % self.log_freq == 0:
+            if i % self.log_freq == self.log_freq - 1:
                 one_hot_pred, many_hot_pred, step = self.train_batch(
                     frame_sequence, one_hot_gt, many_hot_gt, run_summaries=True)
 
@@ -318,6 +333,8 @@ if __name__ == "__main__":
     else:
         net = transnet.TransNetV2()
         logit_fc = tf.sigmoid
+        if options["bi_tempered_loss"]:
+            logit_fc = lambda x: tempered_sigmoid(x, t=options["bi_tempered_loss_temp2"])
 
     net(tf.zeros([1] + options["input_shape"], tf.float32))
     trainer = Trainer(net, options["summary_writer"])
