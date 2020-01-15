@@ -118,8 +118,7 @@ def graph(data, labels=None, marker=""):
 
 def create_scene_based_summaries(one_hot_pred, one_hot_gt, prefix="test", step=0):
     thresholds = np.array([
-        0.02, 0.04, 0.06, 0.08, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4,
-        0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95
+        0.02, 0.06, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9
     ])
     precision, recall, f1, tp, fp, fn = np.zeros_like(thresholds), np.zeros_like(thresholds),\
                                         np.zeros_like(thresholds), np.zeros_like(thresholds),\
@@ -133,8 +132,8 @@ def create_scene_based_summaries(one_hot_pred, one_hot_gt, prefix="test", step=0
         precision[i], recall[i], f1[i], (tp[i], fp[i], fn[i]) = evaluate_scenes(gt_scenes, pred_scenes)
 
     best_idx = np.argmax(f1)
-    tf.summary.scalar(prefix + "/scene/f1_score_0.1", f1[4], step=step)
-    tf.summary.scalar(prefix + "/scene/f1_score_0.5", f1[12], step=step)
+    tf.summary.scalar(prefix + "/scene/f1_score_0.1", f1[2], step=step)
+    tf.summary.scalar(prefix + "/scene/f1_score_0.5", f1[7], step=step)
     tf.summary.scalar(prefix + "/scene/f1_max_score", f1[best_idx], step=step)
     tf.summary.scalar(prefix + "/scene/f1_max_score_thr", thresholds[best_idx], step=step)
     tf.summary.scalar(prefix + "/scene/tp", tp[best_idx], step=step)
