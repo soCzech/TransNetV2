@@ -17,6 +17,8 @@ class TransNetV2(tf.keras.Model):
                  use_convex_comb_reg=False,
                  dropout_rate=None,
                  use_resnet_like_top=False,
+                 frame_similarity_on_last_layer=False,
+                 use_color_histograms=False,
                  name="TransNet"):
         super(TransNetV2, self).__init__(name=name)
 
@@ -27,10 +29,12 @@ class TransNetV2(tf.keras.Model):
         self.cls_layer1 = tf.keras.layers.Dense(1, activation=None)
         self.cls_layer2 = tf.keras.layers.Dense(1, activation=None) if use_many_hot_targets else None
         self.frame_sim_layer = FrameSimilarity() if use_frame_similarity else None
+        self.color_hist_layer = ColorHistograms() if use_color_histograms else None
         self.use_mean_pooling = use_mean_pooling
         self.convex_comb_reg = ConvexCombinationRegularization() if use_convex_comb_reg else None
         self.dropout = tf.keras.layers.Dropout(dropout_rate) if dropout_rate is not None else None
 
+        self.frame_similarity_on_last_layer = frame_similarity_on_last_layer
         self.resnet_like_top = use_resnet_like_top
         if self.resnet_like_top:
             self.resnet_like_top_conv = tf.keras.layers.Conv3D(filters=32, kernel_size=(3, 7, 7), strides=(1, 2, 2),
@@ -65,12 +69,18 @@ class TransNetV2(tf.keras.Model):
             shape = [tf.shape(x)[0], tf.shape(x)[1], np.prod(x.get_shape().as_list()[2:])]
             x = tf.reshape(x, shape=shape, name="flatten_3d")
 
-        if self.frame_sim_layer is not None:
+        if self.frame_sim_layer is not None and not self.frame_similarity_on_last_layer:
             x = tf.concat([self.frame_sim_layer(block_features), x], 2)
+
+        if self.color_hist_layer is not None:
+            x = tf.concat([self.color_hist_layer(inputs), x], 2)
 
         x = self.fc1(x)
         if self.dropout is not None:
             x = self.dropout(x, training=training)
+
+        if self.frame_sim_layer is not None and self.frame_similarity_on_last_layer:
+            x = tf.concat([self.frame_sim_layer(block_features), x], 2)
 
         one_hot = self.cls_layer1(x)
 
@@ -313,7 +323,7 @@ class ResNetFeatures(tf.keras.layers.Layer):
                 v.assign(f[name][:])
 
 
-@gin.configurable(whitelist=["similarity_dim", "lookup_window", "output_dim", "stop_gradient"])
+@gin.configurable(whitelist=["similarity_dim", "lookup_window", "output_dim", "stop_gradient", "use_bias"])
 class FrameSimilarity(tf.keras.layers.Layer):
 
     def __init__(self,
@@ -321,10 +331,11 @@ class FrameSimilarity(tf.keras.layers.Layer):
                  lookup_window=101,
                  output_dim=128,
                  stop_gradient=False,
+                 use_bias=False,
                  name="FrameSimilarity"):
         super(FrameSimilarity, self).__init__(name=name)
 
-        self.projection = tf.keras.layers.Dense(similarity_dim, use_bias=False, activation=None)
+        self.projection = tf.keras.layers.Dense(similarity_dim, use_bias=use_bias, activation=None)
         self.fc = tf.keras.layers.Dense(output_dim, activation=tf.nn.relu)
 
         self.lookup_window = lookup_window
@@ -403,3 +414,65 @@ class ConvexCombinationRegularization(tf.keras.layers.Layer):
         loss_ = self.loss(y_true=image_inputs / self.delta_scale, y_pred=predictions_ / self.delta_scale)
         loss_ = self.loss_weight * tf.math.reduce_mean(loss_)
         return alpha, loss_
+
+
+@gin.configurable(whitelist=["lookup_window", "output_dim"])
+class ColorHistograms(tf.keras.layers.Layer):
+
+    def __init__(self, lookup_window=101, output_dim=None, name="ColorHistograms"):
+        super(ColorHistograms, self).__init__(name=name)
+
+        self.fc = tf.keras.layers.Dense(output_dim, activation=tf.nn.relu) if output_dim is not None else None
+        self.lookup_window = lookup_window
+        assert lookup_window % 2 == 1, "`lookup_window` must be odd integer"
+
+    @staticmethod
+    def compute_color_histograms(frames):
+        frames = tf.cast(frames, tf.int32)
+
+        def get_bin(frames):
+            # returns 0 .. 511
+            R, G, B = frames[:, :, 0], frames[:, :, 1], frames[:, :, 2]
+            R, G, B = tf.bitwise.right_shift(R, 5), tf.bitwise.right_shift(G, 5), tf.bitwise.right_shift(B, 5)
+            return tf.bitwise.left_shift(R, 6) + tf.bitwise.left_shift(G, 3) + B
+
+        batch_size, time_window, height, width = tf.shape(frames)[0], tf.shape(frames)[1], tf.shape(frames)[2], \
+                                                 tf.shape(frames)[3]
+        frames_flatten = tf.reshape(frames, [batch_size * time_window, height * width, 3])
+
+        binned_values = get_bin(frames_flatten)
+        frame_bin_prefix = tf.bitwise.left_shift(tf.range(batch_size * time_window), 9)[:, tf.newaxis]
+        binned_values = binned_values + frame_bin_prefix
+
+        ones = tf.ones_like(binned_values, dtype=tf.int32)
+        histograms = tf.math.unsorted_segment_sum(ones, binned_values, batch_size * time_window * 512)
+        histograms = tf.reshape(histograms, [batch_size, time_window, 512])
+
+        histograms_normalized = tf.cast(histograms, tf.float32)
+        histograms_normalized = histograms_normalized / tf.linalg.norm(histograms_normalized, axis=2, keepdims=True)
+        return histograms_normalized
+
+    def call(self, inputs):
+        x = self.compute_color_histograms(inputs)
+
+        batch_size, time_window = tf.shape(x)[0], tf.shape(x)[1]
+        similarities = tf.matmul(x, x, transpose_b=True)  # [batch_size, time_window, time_window]
+        similarities_padded = tf.pad(similarities, [[0, 0], [0, 0], [(self.lookup_window - 1) // 2] * 2])
+
+        batch_indices = tf.tile(
+            tf.reshape(tf.range(batch_size), [batch_size, 1, 1]), [1, time_window, self.lookup_window]
+        )
+        time_indices = tf.tile(
+            tf.reshape(tf.range(time_window), [1, time_window, 1]), [batch_size, 1, self.lookup_window]
+        )
+        lookup_indices = tf.tile(
+            tf.reshape(tf.range(self.lookup_window), [1, 1, self.lookup_window]), [batch_size, time_window, 1]
+        ) + time_indices
+
+        indices = tf.stack([batch_indices, time_indices, lookup_indices], -1)
+
+        similarities = tf.gather_nd(similarities_padded, indices)
+
+        if self.fc is not None:
+            return self.fc(similarities)
+        return similarities

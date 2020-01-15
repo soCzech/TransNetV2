@@ -9,11 +9,10 @@ bi_tempered_loss = False
 bi_tempered_loss_temp1 = 1.
 bi_tempered_loss_temp2 = 1.
 
-options.n_epochs = 5
-options.log_dir = "final-logs"
-options.log_name = "transnetv1-iacc3"
+options.n_epochs = 10
+options.log_dir = "ablation-logs"
+options.log_name = "transnetv1"
 options.trn_files = ["data/48x27/IACC3Random3000/*.tfrecord"]
-# options.log_name = "transnetv1-clipshots"
 # options.trn_files = [
 #     "data/48x27/IACC3Random3000/*.tfrecord",
 #     "data/48x27/ClipShotsTrain-Train/*.tfrecord",
@@ -39,7 +38,7 @@ options.bi_tempered_loss_temp2 = %bi_tempered_loss_temp2
 
 training.log_freq = 200
 training.grad_clipping = 10.
-training.n_batches_per_epoch = 1500
+training.n_batches_per_epoch = 750
 training.evaluate_on_middle_frames_only = True
 training.optimizer = @tf.keras.optimizers.Adam
 tf.keras.optimizers.Adam.learning_rate = 0.001
@@ -133,6 +132,8 @@ TransNetV2.use_mean_pooling = False
 TransNetV2.use_convex_comb_reg = False
 TransNetV2.dropout_rate = None
 TransNetV2.use_resnet_like_top = False
+TransNetV2.frame_similarity_on_last_layer = False
+TransNetV2.use_color_histograms = False
 
 StackedDDCNNV2.shortcut = False
 StackedDDCNNV2.use_octave_conv = False
@@ -155,11 +156,16 @@ FrameSimilarity.similarity_dim = 128
 FrameSimilarity.lookup_window = 101
 FrameSimilarity.output_dim = 64
 FrameSimilarity.stop_gradient = False
+FrameSimilarity.use_bias = False
 
 # affected by: TransNetV2.use_convex_comb_reg
 ConvexCombinationRegularization.filters = 32
 ConvexCombinationRegularization.delta_scale = 10.
 ConvexCombinationRegularization.loss_weight = 0.01
+
+# affected by: TransNetV2.use_color_histograms
+ColorHistograms.lookup_window = 101
+ColorHistograms.output_dim = None
 
 
 # C3D Config
