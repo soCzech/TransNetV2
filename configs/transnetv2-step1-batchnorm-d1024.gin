@@ -1,0 +1,9 @@
+include "./configs/transnetv1-regularization.gin"
+
+options.log_name = "transnetv2-step1-batchnorm-d1024"
+
+DilatedDCNNV2.batch_norm = True
+
+Conv3DConfigurable.kernel_initializer = "he_normal"
+
+TransNetV2.D = 1024
