@@ -31,7 +31,9 @@ def get_options_dict(n_epochs=None,
                      transition_only_data_fraction=0.3,
                      c3d_net=False,
                      bi_tempered_loss=False,
-                     bi_tempered_loss_temp2=1.):
+                     bi_tempered_loss_temp2=1.,
+                     learning_rate_schedule=None,
+                     learning_rate_decay=None):
     trn_files_ = []
     for fn in trn_files:
         trn_files_.extend(glob.glob(fn))
@@ -76,7 +78,9 @@ def get_options_dict(n_epochs=None,
         "transition_only_data_fraction": transition_only_data_fraction,
         "c3d_net": c3d_net,
         "bi_tempered_loss": bi_tempered_loss,
-        "bi_tempered_loss_temp2": bi_tempered_loss_temp2
+        "bi_tempered_loss_temp2": bi_tempered_loss_temp2,
+        "learning_rate_schedule": learning_rate_schedule,
+        "learning_rate_decay": learning_rate_decay
     }
 
 
@@ -205,6 +209,7 @@ class Trainer:
             for loss_name, loss_value in losses_dict.items():
                 tf.summary.scalar(loss_name, self.mean_metrics[loss_name].result(), step=self.optimizer.iterations)
                 self.mean_metrics[loss_name].reset_states()
+            tf.summary.histogram("learning_rate", self.optimizer.learning_rate, step=self.optimizer.iterations)
 
         return one_hot_pred, alphas if alphas is not None else many_hot_pred, self.optimizer.iterations
 
@@ -358,4 +363,9 @@ if __name__ == "__main__":
 
         trainer.test_epoch(tst_ds, epoch, os.path.join(options["log_dir"], "visualization-{:02d}".format(epoch)),
                            trace=epoch == 1, logit_fc=logit_fc)
+
+        if options["learning_rate_schedule"] is not None:
+            if epoch in options["learning_rate_schedule"]:
+                trainer.optimizer.learning_rate = \
+                    trainer.optimizer.learning_rate.numpy() * options["learning_rate_decay"]
     trainer.finish()

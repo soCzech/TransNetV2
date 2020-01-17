@@ -154,13 +154,15 @@ def augment_shot_spacial(shot, target_width, target_height,
     shot = tf.cond(tf.random.uniform([]) < random_shake_prob,
                    lambda: random_shake(shot), lambda: shot)
 
-    left = tf.random.uniform([], minval=0, maxval=clip_left_right, dtype=tf.int32)
-    right = tf.random.uniform([], minval=0, maxval=clip_left_right, dtype=tf.int32)
+    if clip_left_right != 0 or clip_top_bottom != 0:
+        left = tf.random.uniform([], minval=0, maxval=clip_left_right, dtype=tf.int32)
+        right = tf.random.uniform([], minval=0, maxval=clip_left_right, dtype=tf.int32)
 
-    top = tf.random.uniform([], minval=0, maxval=clip_top_bottom, dtype=tf.int32)
-    bottom = tf.random.uniform([], minval=0, maxval=clip_top_bottom, dtype=tf.int32)
+        top = tf.random.uniform([], minval=0, maxval=clip_top_bottom, dtype=tf.int32)
+        bottom = tf.random.uniform([], minval=0, maxval=clip_top_bottom, dtype=tf.int32)
 
-    shot = shot[:, top:tf.shape(shot)[1] - bottom, left:tf.shape(shot)[2] - right]
+        shot = shot[:, top:tf.shape(shot)[1] - bottom, left:tf.shape(shot)[2] - right]
+
     shot = tf.image.resize(shot, [target_height, target_width])
     return shot
 
