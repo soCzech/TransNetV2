@@ -209,7 +209,7 @@ class Trainer:
             for loss_name, loss_value in losses_dict.items():
                 tf.summary.scalar(loss_name, self.mean_metrics[loss_name].result(), step=self.optimizer.iterations)
                 self.mean_metrics[loss_name].reset_states()
-            tf.summary.histogram("learning_rate", self.optimizer.learning_rate, step=self.optimizer.iterations)
+            tf.summary.scalar("learning_rate", self.optimizer.learning_rate, step=self.optimizer.iterations)
 
         return one_hot_pred, alphas if alphas is not None else many_hot_pred, self.optimizer.iterations
 
@@ -228,6 +228,9 @@ class Trainer:
                         frame_sequence.numpy(), logit_fc(one_hot_pred).numpy(), one_hot_gt.numpy(),
                         logit_fc(many_hot_pred).numpy() if many_hot_pred is not None else None, many_hot_gt.numpy())
                     tf.summary.image("train/visualization", visualizations, step=step)
+
+                for metric in self.mean_metrics.values():
+                    metric.reset_states()
             else:
                 self.train_batch(frame_sequence, one_hot_gt, many_hot_gt, run_summaries=False)
             print("\r", i.numpy(), end="")
