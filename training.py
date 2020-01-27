@@ -225,7 +225,7 @@ class Trainer:
 
                 with self.summary_writer.as_default():
                     visualizations = visualization_utils.visualize_predictions(
-                        frame_sequence.numpy(), logit_fc(one_hot_pred).numpy(), one_hot_gt.numpy(),
+                        frame_sequence.numpy()[:, :, :, :, :3], logit_fc(one_hot_pred).numpy(), one_hot_gt.numpy(),
                         logit_fc(many_hot_pred).numpy() if many_hot_pred is not None else None, many_hot_gt.numpy())
                     tf.summary.image("train/visualization", visualizations, step=step)
 
@@ -289,7 +289,7 @@ class Trainer:
 
                 with self.summary_writer.as_default():
                     visualizations = visualization_utils.visualize_predictions(
-                        frame_sequence.numpy(), logit_fc(one_hot_pred).numpy(), one_hot_gt.numpy(),
+                        frame_sequence.numpy()[:, :, :, :, :3], logit_fc(one_hot_pred).numpy(), one_hot_gt.numpy(),
                         logit_fc(many_hot_pred).numpy() if many_hot_pred is not None else None, many_hot_gt.numpy())
                     tf.summary.image("test/{}/visualization".format(ds_name), visualizations, step=epoch_no)
 

@@ -438,7 +438,12 @@ class ColorHistograms(tf.keras.layers.Layer):
 
         batch_size, time_window, height, width = tf.shape(frames)[0], tf.shape(frames)[1], tf.shape(frames)[2], \
                                                  tf.shape(frames)[3]
-        frames_flatten = tf.reshape(frames, [batch_size * time_window, height * width, 3])
+        no_channels = frames.shape[-1]
+        assert no_channels == 3 or no_channels == 6
+        if no_channels == 3:
+            frames_flatten = tf.reshape(frames, [batch_size * time_window, height * width, 3])
+        else:
+            frames_flatten = tf.reshape(frames, [batch_size * time_window, height * width * 2, 3])
 
         binned_values = get_bin(frames_flatten)
         frame_bin_prefix = tf.bitwise.left_shift(tf.range(batch_size * time_window), 9)[:, tf.newaxis]

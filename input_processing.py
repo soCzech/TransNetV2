@@ -9,7 +9,8 @@ def train_pipeline(filenames,
                    frame_width=48,
                    frame_height=27,
                    batch_size=16,
-                   repeat=False):
+                   repeat=False,
+                   no_channels=3):
     ds = tf.data.Dataset.from_tensor_slices(filenames)
     ds = ds.shuffle(len(filenames))
     ds = ds.interleave(lambda x: tf.data.TFRecordDataset(x, compression_type="GZIP").map(parse_train_sample,
@@ -18,7 +19,7 @@ def train_pipeline(filenames,
                        block_length=16,
                        num_parallel_calls=tf.data.experimental.AUTOTUNE)
     ds = ds.shuffle(shuffle_buffer)
-    ds = ds.padded_batch(2, ([shot_len, frame_height, frame_width, 3], []), drop_remainder=True)
+    ds = ds.padded_batch(2, ([shot_len, frame_height, frame_width, no_channels], []), drop_remainder=True)
     ds = ds.map(concat_shots, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
     def filter_(*args):
@@ -97,7 +98,10 @@ def parse_train_sample(sample,
                        sudden_color_change_prob=0.,
                        spacial_augmentation=False,
                        original_width=None,
-                       original_height=None):
+                       original_height=None,
+                       no_channels=3):
+    assert no_channels == 3 or no_channels == 6
+
     features = tf.io.parse_single_example(sample, features={
         "scene": tf.io.FixedLenFeature([], tf.string),
         "length": tf.io.FixedLenFeature([], tf.int64)
@@ -108,7 +112,7 @@ def parse_train_sample(sample,
     original_height = original_height if spacial_augmentation else frame_height
 
     scene = tf.io.decode_raw(features["scene"], tf.uint8)
-    scene = tf.reshape(scene, [length, original_height, original_width, 3])
+    scene = tf.reshape(scene, [length, original_height, original_width, no_channels])
 
     shot_start = tf.random.uniform([], minval=0, maxval=tf.maximum(1, length - shot_len), dtype=tf.int32)
     shot_end = shot_start + shot_len
@@ -117,6 +121,8 @@ def parse_train_sample(sample,
     scene = tf.cast(scene, dtype=tf.float32)
 
     if sudden_color_change_prob != 0.:
+        assert no_channels == 3  # not implemented
+
         def color_change(shot_):
             bound = tf.random.uniform([], minval=1, maxval=tf.shape(shot_)[0], dtype=tf.int32)
             start, end = shot_[:bound], shot_[bound:]
@@ -127,9 +133,10 @@ def parse_train_sample(sample,
                         lambda: color_change(scene), lambda: scene)
 
     if spacial_augmentation:
+        assert no_channels == 3  # not implemented
         scene = augment_shot_spacial(scene, frame_width, frame_height)
 
-    scene = augment_shot(scene)
+    scene = augment_shot(scene, no_channels=no_channels)
     return scene, tf.shape(scene)[0]  # [<SHOT_LENGTH, IMAGE_HEIGHT, IMAGE_WIDTH, 3]
 
 
@@ -168,7 +175,7 @@ def augment_shot_spacial(shot, target_width, target_height,
 
 
 @tf.function
-@gin.configurable(blacklist=["shot"])
+@gin.configurable(blacklist=["shot", "no_channels"])
 def augment_shot(shot,
                  up_down_flip_prob=.2,
                  left_right_flip_prob=.5,
@@ -181,11 +188,17 @@ def augment_shot(shot,
                  posterize_min_bits=2,
                  color_prob=0.,
                  color_min_val=0.3,
-                 color_max_val=1.7):
+                 color_max_val=1.7,
+                 no_channels=3):
+
+    if no_channels != 3:
+        shot_len, shot_height, shot_width = tf.shape(shot)[0], tf.shape(shot)[1], tf.shape(shot)[2]
+        shot = tf.reshape(shot, [shot_len, shot_height, shot_width * 2, 3])
 
     shot = tf.cond(tf.random.uniform([]) < up_down_flip_prob,
                    lambda: tf.image.flip_up_down(shot), lambda: shot)
 
+    assert no_channels == 3 or left_right_flip_prob == 0.
     shot = tf.cond(tf.random.uniform([]) < left_right_flip_prob,
                    lambda: tf.image.flip_left_right(shot), lambda: shot)
 
@@ -216,6 +229,9 @@ def augment_shot(shot,
         shot = tf.cond(tf.random.uniform([]) < posterize_prob,
                        lambda: pil_posterize(shot, bits=tf.cast(bits, tf.uint8)), lambda: shot)
         shot = tf.cast(shot, tf.float32)
+
+    if no_channels != 3:
+        shot = tf.reshape(shot, [shot_len, shot_height, shot_width, 6])
     return shot
 
 
@@ -229,13 +245,15 @@ def concat_shots(shots,
                  transition_max_len=60,
                  hard_cut_prob=0.4,
                  cutout_prob=0.3,
-                 advanced_shot_trans_prob=0.):
+                 advanced_shot_trans_prob=0.,
+                 no_channels=3):
     assert transition_min_len % 2 == 0 and transition_min_len >= 2, "`transition_min_len` must be even"
     assert transition_max_len % 2 == 0, "`transition_max_len` must be even"
     shot1 = shots[0][:lens[0]]
     shot2 = shots[1][:lens[1]]
 
     if color_transfer_prob > 0:
+        assert no_channels == 3  # not implemented
         shot2 = tf.cond(tf.random.uniform([]) < color_transfer_prob,
                         lambda: color_transfer(source=shot1, target=shot2), lambda: shot2)
 
@@ -290,8 +308,10 @@ def concat_shots(shots,
                    lambda: advanced_shot_transitions(shot1, shot2, transition),
                    lambda: basic_shot_transitions(shot1, shot2, transition))
 
-    shot = tf.cond(tf.random.uniform([]) < cutout_prob,
-                   lambda: cutout(shot), lambda: shot)
+    if cutout_prob > 0.:
+        assert no_channels == 3  # not implemented
+        shot = tf.cond(tf.random.uniform([]) < cutout_prob,
+                       lambda: cutout(shot), lambda: shot)
     return shot, one_hot_gt, many_hot_gt, tf.maximum(shot1_pad_start, shot2_pad_end) == 0
 
 
@@ -558,7 +578,8 @@ def test_pipeline(filenames,
 @gin.configurable(blacklist=["sample"])
 def parse_test_sample(sample,
                       frame_width=48,
-                      frame_height=27):
+                      frame_height=27,
+                      no_channels=3):
     features = tf.io.parse_single_example(sample, features={
         "frame": tf.io.FixedLenFeature([], tf.string),
         "is_one_hot_transition": tf.io.FixedLenFeature([], tf.int64),
@@ -566,7 +587,7 @@ def parse_test_sample(sample,
     })
 
     frame = tf.io.decode_raw(features["frame"], tf.uint8)
-    frame = tf.reshape(frame, [frame_height, frame_width, 3])
+    frame = tf.reshape(frame, [frame_height, frame_width, no_channels])
 
     one_hot = tf.cast(features["is_one_hot_transition"], tf.int32)
     many_hot = tf.cast(features["is_many_hot_transition"], tf.int32)

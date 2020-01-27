@@ -60,8 +60,11 @@ def scenes2zero_one_representation(scenes, n_frames):
     return one_hot, many_hot
 
 
-def create_test_tfrecord(video_fn, scenes_fn, target_fn, width, height):
+def create_test_tfrecord(video_fn, scenes_fn, target_fn, width, height, six_channels=False):
     frames = video_utils.get_frames(video_fn, width, height)
+    if six_channels:
+        frame_centers = video_utils.get_frames(video_fn, width * 3, height * 3)[:, height:height * 2, width:width * 2]
+        frames = np.concatenate([frames, frame_centers], -1)
     n_frames = len(frames)
 
     scenes = np.loadtxt(scenes_fn, dtype=np.int32, ndmin=2)
@@ -80,13 +83,13 @@ def create_test_tfrecord(video_fn, scenes_fn, target_fn, width, height):
             writer.write(example.SerializeToString())
 
 
-def create_test_dataset(target_dir, mapping_fn, width, height):
+def create_test_dataset(target_dir, mapping_fn, width, height, six_channels=False):
     os.makedirs(target_dir, exist_ok=True)
     mapping = np.loadtxt(mapping_fn, dtype=np.str, delimiter=",")
 
     for video_fn, scenes_fn in tqdm.tqdm(mapping):
         target_fn = os.path.join(target_dir, os.path.splitext(os.path.basename(video_fn))[0] + ".tfrecord")
-        create_test_tfrecord(video_fn, scenes_fn, target_fn, width, height)
+        create_test_tfrecord(video_fn, scenes_fn, target_fn, width, height, six_channels=six_channels)
 
 
 def create_test_npy_files(target_dir, mapping_fn, width, height):
@@ -102,8 +105,11 @@ def create_test_npy_files(target_dir, mapping_fn, width, height):
         np.save(target_fn, frames)
 
 
-def get_scenes_from_video(video_fn, scenes_fn, width, height, min_scene_len=25):
+def get_scenes_from_video(video_fn, scenes_fn, width, height, min_scene_len=25, six_channels=False):
     frames = video_utils.get_frames(video_fn, width, height)
+    if six_channels:
+        frame_centers = video_utils.get_frames(video_fn, width * 3, height * 3)[:, height:height * 2, width:width * 2]
+        frames = np.concatenate([frames, frame_centers], -1)
     scenes = np.loadtxt(scenes_fn, dtype=np.int32, ndmin=2)
 
     video_scenes = [frames[start:end + 1] for start, end in scenes if (end + 1) - start >= min_scene_len]
@@ -124,7 +130,7 @@ def get_scenes_from_video(video_fn, scenes_fn, width, height, min_scene_len=25):
     return selected_sequences
 
 
-def create_train_dataset(target_dir, target_fn, mapping_fn, width, height, n_videos_in_tfrecord=20):
+def create_train_dataset(target_dir, target_fn, mapping_fn, width, height, n_videos_in_tfrecord=20, six_channels=False):
     os.makedirs(target_dir, exist_ok=True)
     mapping = np.loadtxt(mapping_fn, dtype=np.str, delimiter=",").tolist()
 
@@ -137,7 +143,7 @@ def create_train_dataset(target_dir, target_fn, mapping_fn, width, height, n_vid
         tfrecord_scenes = []
         for video_fn, scenes_fn in mapping[start_idx:start_idx + n_videos_in_tfrecord]:
             tfrecord_scenes.extend(
-                get_scenes_from_video(video_fn, scenes_fn, width, height)
+                get_scenes_from_video(video_fn, scenes_fn, width, height, six_channels=six_channels)
             )
             pbar.update()
 
@@ -244,16 +250,20 @@ if __name__ == "__main__":
     parser.add_argument("--target_fn", type=str, help="filename where to store the results (only if type=`train`)")
     parser.add_argument("--w", type=int, help="width of frames", default=48)
     parser.add_argument("--h", type=int, help="height of frames", default=27)
+    parser.add_argument("--six_channels", action="store_true")
 
     args = parser.parse_args()
 
     if args.type == "train":
         assert args.target_fn is not None
-        create_train_dataset(args.target_dir, args.target_fn, args.mapping_fn, args.w, args.h)
+        create_train_dataset(args.target_dir, args.target_fn, args.mapping_fn, args.w, args.h,
+                             six_channels=args.six_channels)
     elif args.type == "train-transitions":
         assert args.target_fn is not None
+        assert not args.six_channels  # not implemented
         create_train_transition_dataset(args.target_dir, args.target_fn, args.mapping_fn, args.w, args.h)
     elif args.type == "test":
-        create_test_dataset(args.target_dir, args.mapping_fn, args.w, args.h)
+        create_test_dataset(args.target_dir, args.mapping_fn, args.w, args.h, six_channels=args.six_channels)
     elif args.type == "test-npy":
+        assert not args.six_channels  # not implemented
         create_test_npy_files(args.target_dir, args.mapping_fn, args.w, args.h)
