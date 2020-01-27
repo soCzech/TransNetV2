@@ -16,6 +16,11 @@ import create_dataset
 import input_processing
 import visualization_utils
 
+import logging
+logger = tf.get_logger()
+logger.setLevel(logging.ERROR)
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+
 
 def get_batches(frames):
     reminder = 50 - len(frames) % 50
@@ -31,13 +36,14 @@ def get_batches(frames):
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description="Train TransNet")
+    parser = argparse.ArgumentParser(description="Evaluate TransNet")
     parser.add_argument("log_dir", help="path to log dir")
     parser.add_argument("epoch", help="what weights to use", type=int)
     parser.add_argument("directory", help="path to the test dataset")
     parser.add_argument("--thr", default=0.5, type=float, help="threshold for transition")
     args = parser.parse_args()
 
+    print(args)
     gin.parse_config_file(os.path.join(args.log_dir, "config.gin"))
     options = training.get_options_dict(create_dir_and_summaries=False)
 
@@ -63,7 +69,8 @@ if __name__ == "__main__":
     results = []
     total_stats = {"tp": 0, "fp": 0, "fn": 0}
 
-    img_dir = os.path.join(args.log_dir, "results-{}".format(args.epoch))
+    dataset_name = [i for i in args.directory.split("/") if i != ""][-1]
+    img_dir = os.path.join(args.log_dir, "results", "{}-epoch{:d}".format(dataset_name, args.epoch))
     os.makedirs(img_dir, exist_ok=True)
 
     for np_fn in tqdm.tqdm(files):
@@ -95,8 +102,7 @@ if __name__ == "__main__":
 
         results.append((np_fn, predictions, gt_scenes))
 
-    with open(os.path.join(args.log_dir, "results-{}-epoch{:d}.pickle".format(
-            [i for i in args.directory.split("/") if i != ""][-1], args.epoch)), "wb") as f:
+    with open(os.path.join(args.log_dir, "results", "{}-epoch{:d}.pickle".format(dataset_name, args.epoch)), "wb") as f:
         pickle.dump(results, f)
 
     p = total_stats["tp"] / (total_stats["tp"] + total_stats["fp"])
