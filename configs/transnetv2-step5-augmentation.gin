@@ -1,0 +1,20 @@
+include "./configs/transnetv2-step4-sgd.gin"
+
+options.log_name = "transnetv2-step5-augmentation"
+
+options.log_dir = "ablation-logs2"
+
+augment_shot.up_down_flip_prob = 0.1
+augment_shot.left_right_flip_prob = 0.5
+augment_shot.adjust_saturation = True
+augment_shot.adjust_contrast = True
+augment_shot.adjust_brightness = True
+augment_shot.adjust_hue = True
+augment_shot.equalize_prob = 0.05
+augment_shot.posterize_prob = 0.05
+augment_shot.posterize_min_bits = 4
+augment_shot.color_prob = 0.05
+augment_shot.color_min_val = 0.5
+augment_shot.color_max_val = 1.2
+
+concat_shots.color_transfer_prob = 0.1
