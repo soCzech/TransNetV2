@@ -1,0 +1,11 @@
+include "./configs/transnetv2-step6-largerds.gin"
+
+options.log_name = "transnetv2-step7-alsotransds"
+
+options.log_dir = "thesis-logs2"
+
+options.transition_only_trn_files = [
+    "data/48x27/ClipShotsTrainTransitions/*.tfrecord",
+    "data/48x27/ClipShotsGradual-transitions/*.tfrecord"
+]
+options.transition_only_data_fraction = 0.2
