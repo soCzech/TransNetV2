@@ -13,6 +13,8 @@ import metrics_utils
 import input_processing
 import visualization_utils
 from bi_tempered_loss import bi_tempered_binary_logistic_loss, tempered_sigmoid
+import weight_decay_optimizers
+gin.config.external_configurable(weight_decay_optimizers.SGDW, 'weight_decay_optimizers.SGDW')
 
 
 @gin.configurable("options", blacklist=["create_dir_and_summaries"])
