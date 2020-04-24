@@ -102,10 +102,11 @@ class StackedDDCNNV2(tf.keras.layers.Layer):
         if use_octave_conv and pool_type == "max":
             print("WARN: Octave convolution was designed with average pooling, not max pooling.")
 
-        self.shortcut = None
-        if shortcut:
-            self.shortcut = tf.keras.layers.Conv3D(filters * 4, kernel_size=1, dilation_rate=1, padding="SAME",
-                                                   activation=None, use_bias=True, name="shortcut")
+        self.shortcut = shortcut
+        # self.shortcut = None
+        # if shortcut:
+        #     self.shortcut = tf.keras.layers.Conv3D(filters * 4, kernel_size=1, dilation_rate=1, padding="SAME",
+        #                                            activation=None, use_bias=True, name="shortcut")
 
         self.blocks = [DilatedDCNNV2(filters, octave_conv=use_octave_conv,
                                      activation=tf.nn.relu if i != n_blocks else None,
@@ -117,16 +118,21 @@ class StackedDDCNNV2(tf.keras.layers.Layer):
 
     def call(self, inputs, training=False):
         x = inputs
+        shortcut = None
 
         if self.octave:
             x = [self.pool(x), x]
         for block in self.blocks:
             x = block(x, training=training)
+            if shortcut is None:
+                shortcut = x
         if self.octave:
             x = tf.concat([x[0], self.pool(x[1])], -1)
 
+        x = tf.nn.relu(x)
+
         if self.shortcut is not None:
-            shortcut = self.shortcut(inputs)
+            # shortcut = self.shortcut(inputs)
             if self.stochastic_depth_drop_prob != 0.:
                 if training:
                     x = tf.cond(tf.random.uniform([]) < self.stochastic_depth_drop_prob,
@@ -135,7 +141,6 @@ class StackedDDCNNV2(tf.keras.layers.Layer):
                     x = (1 - self.stochastic_depth_drop_prob) * x + shortcut
             else:
                 x += shortcut
-        x = tf.nn.relu(x)
 
         if not self.octave:
             x = self.pool(x)
