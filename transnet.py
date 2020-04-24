@@ -201,12 +201,13 @@ class Conv3DConfigurable(tf.keras.layers.Layer):
         assert not (separable and octave)
 
         if separable:
-            conv1 = tf.keras.layers.Conv3D(filters, kernel_size=(3, 1, 1), dilation_rate=(dilation_rate, 1, 1),
-                                           padding="SAME", activation=None, use_bias=False, name="conv_temporal",
-                                           kernel_initializer=kernel_initializer)
-            conv2 = tf.keras.layers.Conv3D(filters, kernel_size=(1, 3, 3), dilation_rate=(1, 1, 1),
-                                           padding="SAME", activation=None, use_bias=use_bias,
+            # (2+1)D convolution https://arxiv.org/pdf/1711.11248.pdf
+            conv1 = tf.keras.layers.Conv3D(2 * filters, kernel_size=(1, 3, 3), dilation_rate=(1, 1, 1),
+                                           padding="SAME", activation=None, use_bias=False,
                                            name="conv_spatial", kernel_initializer=kernel_initializer)
+            conv2 = tf.keras.layers.Conv3D(filters, kernel_size=(3, 1, 1), dilation_rate=(dilation_rate, 1, 1),
+                                           padding="SAME", activation=None, use_bias=use_bias, name="conv_temporal",
+                                           kernel_initializer=kernel_initializer)
             self.layers = [conv1, conv2]
         elif octave:
             conv = OctConv3D(filters, kernel_size=3, dilation_rate=(dilation_rate, 1, 1), use_bias=use_bias,
