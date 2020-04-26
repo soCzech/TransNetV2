@@ -23,9 +23,9 @@ video_frames, single_frame_predictions, all_frame_predictions = \
     model.predict_video("/path/to/video.mp4")
 
 # or
-frame_sequence = ... # np.array, shape: [n_frames, 27, 48, 3], dtype: np.uint8, RGB (not BGR)
+video_frames = ... # np.array, shape: [n_frames, 27, 48, 3], dtype: np.uint8, RGB (not BGR)
 single_frame_predictions, all_frame_predictions = \
-    model.predict_frames(frame_sequence)
+    model.predict_frames(video_frames)
 ```
 
 - Get scenes from predictions:
