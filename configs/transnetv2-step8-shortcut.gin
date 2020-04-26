@@ -1,8 +1,0 @@
-include "./configs/transnetv2-step7-separableconv.gin"
-
-options.log_name = "transnetv2-step8-shortcut"
-
-options.n_epochs = 30
-options.log_dir = "thesis-logs6"
-
-StackedDDCNNV2.shortcut = True

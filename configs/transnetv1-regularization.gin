@@ -1,8 +1,0 @@
-include "./configs/transnetv1.gin"
-
-options.log_name = "transnetv1-regularization"
-
-loss.transition_weight = 5.
-loss.l2_loss_weight = 0.0001
-
-TransNetV2.dropout_rate = 0.5
