@@ -1,9 +1,0 @@
-include "./configs/transnetv2-step1-batchnorm-d1024.gin"
-
-options.log_name = "transnetv2-step2-colorhist"
-
-TransNetV2.use_color_histograms = True
-
-# affected by: TransNetV2.use_color_histograms
-ColorHistograms.lookup_window = 101
-ColorHistograms.output_dim = 128

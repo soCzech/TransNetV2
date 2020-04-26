@@ -1,0 +1,11 @@
+include "./configs/transnetv2.gin"
+
+options.log_name = "transnetv2-realtrans"
+options.n_epochs = 50
+options.transition_only_data_fraction = 0.15
+options.transition_only_trn_files = [
+    "data/48x27/ClipShotsTrainTransitions/*.tfrecord",
+    "data/48x27/ClipShotsGradual-transitions/*.tfrecord"
+]
+
+concat_shots.hard_cut_prob = 0.412

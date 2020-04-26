@@ -10,7 +10,7 @@ bi_tempered_loss_temp1 = 1.
 bi_tempered_loss_temp2 = 1.
 
 options.n_epochs = 10
-options.log_dir = "ablation-logs"
+options.log_dir = "logs"
 options.log_name = "transnetv1"
 options.trn_files = ["data/48x27/IACC3Random3000/*.tfrecord"]
 # options.trn_files = [

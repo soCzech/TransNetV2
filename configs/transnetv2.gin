@@ -1,0 +1,211 @@
+# Macros:
+# ==============================================================================
+bi_tempered_loss = False
+bi_tempered_loss_temp1 = 1.0
+bi_tempered_loss_temp2 = 1.0
+frame_height = 27
+frame_width = 48
+shot_len = 100
+
+# Parameters for Adam:
+# ==============================================================================
+Adam.learning_rate = 0.001
+
+# Parameters for augment_shot:
+# ==============================================================================
+augment_shot.adjust_brightness = True
+augment_shot.adjust_contrast = True
+augment_shot.adjust_hue = True
+augment_shot.adjust_saturation = True
+augment_shot.color_max_val = 1.2
+augment_shot.color_min_val = 0.5
+augment_shot.color_prob = 0.05
+augment_shot.equalize_prob = 0.05
+augment_shot.left_right_flip_prob = 0.5
+augment_shot.posterize_min_bits = 4
+augment_shot.posterize_prob = 0.05
+augment_shot.up_down_flip_prob = 0.1
+
+# Parameters for augment_shot_spacial:
+# ==============================================================================
+augment_shot_spacial.clip_left_right = 20
+augment_shot_spacial.clip_top_bottom = 10
+augment_shot_spacial.random_shake_max_size = 15
+augment_shot_spacial.random_shake_prob = 0.3
+
+# Parameters for C3DConvolutions:
+# ==============================================================================
+C3DConvolutions.restore_from = None
+
+# Parameters for C3DNet:
+# ==============================================================================
+C3DNet.D = 256
+
+# Parameters for ColorHistograms:
+# ==============================================================================
+ColorHistograms.lookup_window = 101
+ColorHistograms.output_dim = 128
+
+# Parameters for concat_shots:
+# ==============================================================================
+concat_shots.advanced_shot_trans_prob = 0.0
+concat_shots.color_transfer_prob = 0.1
+concat_shots.cutout_prob = 0.0
+concat_shots.hard_cut_prob = 0.5
+concat_shots.shot_len = %shot_len
+concat_shots.transition_max_len = 30
+concat_shots.transition_min_len = 2
+
+# Parameters for Conv3DConfigurable:
+# ==============================================================================
+Conv3DConfigurable.kernel_initializer = 'he_normal'
+Conv3DConfigurable.separable = True
+
+# Parameters for ConvexCombinationRegularization:
+# ==============================================================================
+ConvexCombinationRegularization.delta_scale = 10.0
+ConvexCombinationRegularization.filters = 32
+ConvexCombinationRegularization.loss_weight = 0.01
+
+# Parameters for cutout:
+# ==============================================================================
+cutout.cutout_color = None
+cutout.max_height_fraction = 0.6
+cutout.max_width_fraction = 0.6
+cutout.min_height_fraction = 0.3
+cutout.min_width_fraction = 0.3
+
+# Parameters for DilatedDCNNV2:
+# ==============================================================================
+DilatedDCNNV2.batch_norm = True
+
+# Parameters for FrameSimilarity:
+# ==============================================================================
+FrameSimilarity.lookup_window = 101
+FrameSimilarity.output_dim = 128
+FrameSimilarity.similarity_dim = 128
+FrameSimilarity.stop_gradient = False
+FrameSimilarity.use_bias = True
+
+# Parameters for loss:
+# ==============================================================================
+loss.bi_tempered_loss = %bi_tempered_loss
+loss.bi_tempered_loss_temp1 = %bi_tempered_loss_temp1
+loss.bi_tempered_loss_temp2 = %bi_tempered_loss_temp2
+loss.dynamic_weight = None
+loss.l2_loss_weight = 0.0001
+loss.many_hot_loss_weight = 0.1
+loss.transition_weight = 5.0
+
+# Parameters for OctConv3D:
+# ==============================================================================
+OctConv3D.alpha = 0.25
+
+# Parameters for options:
+# ==============================================================================
+options.bi_tempered_loss = %bi_tempered_loss
+options.bi_tempered_loss_temp2 = %bi_tempered_loss_temp2
+options.c3d_net = False
+options.input_shape = [%shot_len, %frame_height, %frame_width, 3]
+options.learning_rate_decay = None
+options.learning_rate_schedule = None
+options.log_dir = 'logs'
+options.log_name = 'transnetv2'
+options.n_epochs = 30
+options.original_transnet = False
+options.restore = None
+options.restore_resnet_features = None
+options.test_only = False
+options.transition_only_data_fraction = 0.3
+options.transition_only_trn_files = None
+options.trn_files = \
+    ['data/48x27/IACC3Random3000/*.tfrecord',
+     'data/48x27/ClipShotsTrain-Train/*.tfrecord',
+     'data/48x27/ClipShotsGradual/*.tfrecord']
+options.tst_files = \
+    {'clip_shots_val': ['data/48x27/ClipShotsTrain-Valid/*.tfrecord'],
+     'dissolves_20': ['data/48x27/ClipShotsTrain-validation/dissolves_20.tfrecord'],
+     'dissolves_60': ['data/48x27/ClipShotsTrain-validation/dissolves_60.tfrecord'],
+     'hardcuts': ['data/48x27/ClipShotsTrain-validation/hardcuts.tfrecord'],
+     'iacc100': ['data/48x27/IACC3Subset100/*.tfrecord']}
+
+# Parameters for parse_test_sample:
+# ==============================================================================
+parse_test_sample.frame_height = %frame_height
+parse_test_sample.frame_width = %frame_width
+
+# Parameters for parse_train_sample:
+# ==============================================================================
+parse_train_sample.frame_height = %frame_height
+parse_train_sample.frame_width = %frame_width
+parse_train_sample.original_height = None
+parse_train_sample.original_width = None
+parse_train_sample.shot_len = %shot_len
+parse_train_sample.spacial_augmentation = False
+parse_train_sample.sudden_color_change_prob = 0.0
+
+# Parameters for parse_train_transition_sample:
+# ==============================================================================
+parse_train_transition_sample.frame_height = %frame_height
+parse_train_transition_sample.frame_width = %frame_width
+parse_train_transition_sample.shot_len = %shot_len
+
+# Parameters for ResNetFeatures:
+# ==============================================================================
+ResNetFeatures.trainable = False
+
+# Parameters for SGD:
+# ==============================================================================
+SGD.learning_rate = 0.01
+SGD.momentum = 0.9
+
+# Parameters for StackedDDCNNV2:
+# ==============================================================================
+StackedDDCNNV2.pool_type = 'avg'
+StackedDDCNNV2.shortcut = True
+StackedDDCNNV2.stochastic_depth_drop_prob = 0.0
+StackedDDCNNV2.use_octave_conv = False
+
+# Parameters for test_pipeline:
+# ==============================================================================
+test_pipeline.batch_size = 16
+test_pipeline.shot_len = %shot_len
+
+# Parameters for train_pipeline:
+# ==============================================================================
+train_pipeline.batch_size = 16
+train_pipeline.frame_height = %frame_height
+train_pipeline.frame_width = %frame_width
+train_pipeline.repeat = True
+train_pipeline.shot_len = %shot_len
+train_pipeline.shuffle_buffer = 100
+
+# Parameters for train_transition_pipeline:
+# ==============================================================================
+train_transition_pipeline.batch_size = 16
+train_transition_pipeline.repeat = False
+train_transition_pipeline.shuffle_buffer = 100
+
+# Parameters for training:
+# ==============================================================================
+training.evaluate_on_middle_frames_only = True
+training.grad_clipping = 10.0
+training.log_freq = 200
+training.n_batches_per_epoch = 750
+training.optimizer = @tf.keras.optimizers.SGD
+
+# Parameters for TransNetV2:
+# ==============================================================================
+TransNetV2.D = 1024
+TransNetV2.F = 16
+TransNetV2.L = 3
+TransNetV2.S = 2
+TransNetV2.dropout_rate = 0.5
+TransNetV2.frame_similarity_on_last_layer = False
+TransNetV2.use_color_histograms = True
+TransNetV2.use_convex_comb_reg = False
+TransNetV2.use_frame_similarity = True
+TransNetV2.use_many_hot_targets = True
+TransNetV2.use_mean_pooling = False
+TransNetV2.use_resnet_features = False
+TransNetV2.use_resnet_like_top = False

@@ -1,9 +1,0 @@
-include "./configs/transnetv2-step2-colorhist.gin"
-
-options.log_name = "transnetv2-step3-manyhot-colorhist"
-
-loss.many_hot_loss_weight = 0.1
-
-TransNetV2.use_many_hot_targets = True
-
-StackedDDCNNV2.pool_type = "avg"
