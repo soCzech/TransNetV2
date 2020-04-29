@@ -11,8 +11,7 @@ class TransNetV2:
     def predict_raw(self, frames: np.ndarray):
         assert len(frames.shape) == 5 and frames.shape[2:] == self._input_size, \
             "[TransNetV2] Input shape must be [batch, frames, height, width, 3]."
-        # the network takes BGR input
-        frames = frames[:, :, :, ::-1]
+        frames = tf.cast(frames, tf.float32)
 
         logits, dict_ = self._model(frames)
         single_frame_pred = tf.sigmoid(logits)
@@ -40,7 +39,7 @@ class TransNetV2:
             while ptr + 100 <= len(padded_inputs):
                 out = padded_inputs[ptr:ptr + 100]
                 ptr += 50
-                yield out[np.newaxis].astype(np.float32)
+                yield out[np.newaxis]
 
         predictions = []
 

@@ -40,15 +40,7 @@ model.visualize_predictions(
 ```
 
 ### NOTES
-> Train and test dataset was extracted using ffmpeg 2.7 on Windows.
-> For some reason related or unrelated to the ffmpeg version extracted datasets were in BGR format even with `pix_fmt='rgb24'` specified.
-> Therefore the network expects BGR input format. However `TransNetV2` class expects RGB input as it internally transforms RGB to BGR.
-
-> When using `predict_video` function, be sure the output of `ffmpeg` is in RGB format (and not in BGR).
-
-> Also note that your results on test sets can slightly differ when using newer version of `ffmpeg`.
-> We measured 93.6% when using `ffmpeg v4.1.4` on RAI compared to 93.9% achieved by using our original RAI test set extracted by `ffmpeg v2.7`.
-
+> Note that your results on test sets can slightly differ when using different extraction method or particular `ffmpeg` version.
 
 ### CREDITS
 If find useful, please cite us;)
