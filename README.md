@@ -1,6 +1,6 @@
 # TransNet V2: Shot Boundary Detection Neural Network
 
-This repository contains extension of [TransNet: A deep network for fast detection of common shot transitions](https://arxiv.org/abs/1906.03363).
+This repository contains code for [TransNet V2: An effective deep network architecture for fast shot transition detection](#TBA) (link will be added in the coming weeks).
 
 Our reevaluation of other publicly available state-of-the-art shot boundary methods (F1 scores):
 
@@ -12,12 +12,13 @@ TransNet V2 (this repo) | **77.9** | **96.2** | 93.9
 [Tang et al., ResNet baseline](https://arxiv.org/abs/1808.04234) [(github)](https://github.com/Tangshitao/ClipShots_basline) | 76.1 | 89.3 | 92.8
 
 
-### USE IT ON YOUR DATA
-See [_inference_ folder](https://github.com/soCzech/TransNetV2/tree/master/inference) and its _README_ file.
+### USE IT
+**See [_inference_ folder](https://github.com/soCzech/TransNetV2/tree/master/inference) and its _README_ file.**
 
 
 ### REPLICATE THE WORK
 This repository contains all that is needed to run any experiment for TransNet V2 network including network training and dataset creation.
+All experiments should be runnable in [this NVIDIA DOCKER file](https://github.com/soCzech/TransNetV2/blob/master/Dockerfile).
 
 In general these steps need to be done in order to replicate our work:
 
@@ -33,12 +34,12 @@ In general these steps need to be done in order to replicate our work:
 
 ### CREDITS
 If find useful, please cite us;)
-At the moment there is only the older paper [TransNet: A deep network for fast detection of common shot transitions](https://arxiv.org/abs/1906.03363) available so please cite that one.
 ```
-@article{soucek2019transnet,
-    title={TransNet: A deep network for fast detection of common shot transitions},
-    author={Sou{\v{c}}ek, Tom{\'a}{\v{s}} and Moravec, Jaroslav and Loko{\v{c}}, Jakub},
-    journal={arXiv preprint arXiv:1906.03363},
-    year={2019}
+@article{soucek2020transnetv2,
+    title={TransNet V2: An effective deep network architecture for fast shot transition detection},
+    author={Sou{\v{c}}ek, Tom{\'a}{\v{s}} and and Loko{\v{c}}, Jakub},
+    year={2020}
 }
 ```
+
+The older paper [TransNet: A deep network for fast detection of common shot transitions](https://arxiv.org/abs/1906.03363).

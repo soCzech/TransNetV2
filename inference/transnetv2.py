@@ -1,10 +1,18 @@
+import os
 import numpy as np
 import tensorflow as tf
 
 
 class TransNetV2:
 
-    def __init__(self, model_dir: str):
+    def __init__(self, model_dir=None):
+        if model_dir is None:
+            model_dir = os.path.join(os.path.dirname(__file__), "transnetv2-weights/")
+            if not os.path.isdir(model_dir):
+                raise FileNotFoundError(f"[TransNetV2] ERROR: {model_dir} is not a directory.")
+            else:
+                print(f"[TransNetV2] Using weights from {model_dir}.")
+
         self._input_size = (27, 48, 3)
         self._model = tf.saved_model.load(model_dir)
 
@@ -135,3 +143,46 @@ class TransNetV2:
                 if value != 0:
                     draw.line((x + j, y, x + j, y - value), fill=tuple(color), width=1)
         return img
+
+
+def main():
+    import sys
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("files", type=str, nargs="+", help="path to video files to process")
+    parser.add_argument("--weights", type=str, default=None,
+                        help="path to TransNet V2 weights, tries to infer the location if not specified")
+    parser.add_argument('--visualize', action="store_true",
+                        help="save a png file with prediction visualization for each extracted video")
+    args = parser.parse_args()
+
+    model = TransNetV2(args.weights)
+    for file in args.files:
+        if os.path.exists(file + ".predictions.txt") or os.path.exists(file + ".scenes.txt"):
+            print(f"[TransNetV2] {file}.predictions.txt or {file}.scenes.txt already exists. "
+                  f"Skipping video {file}.", file=sys.stderr)
+            continue
+
+        video_frames, single_frame_predictions, all_frame_predictions = \
+            model.predict_video(file)
+
+        predictions = np.stack([single_frame_predictions, all_frame_predictions], 1)
+        np.savetxt(file + ".predictions.txt", predictions, fmt="%.6f")
+
+        scenes = model.predictions_to_scenes(single_frame_predictions)
+        np.savetxt(file + ".scenes.txt", scenes, fmt="%d")
+
+        if args.visualize:
+            if os.path.exists(file + ".vis.png"):
+                print(f"[TransNetV2] {file}.vis.png already exists. "
+                      f"Skipping visualization of video {file}.", file=sys.stderr)
+                continue
+
+            pil_image = model.visualize_predictions(
+                video_frames, predictions=(single_frame_predictions, all_frame_predictions))
+            pil_image.save(file + ".vis.png")
+
+
+if __name__ == "__main__":
+    main()
