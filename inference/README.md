@@ -79,7 +79,7 @@ model.visualize_predictions(
 > Note that your results on test sets can slightly differ when using different extraction method or particular `ffmpeg` version.
 
 ### CREDITS
-If find useful, please cite us;)
+If found useful, please cite us;)
 ```
 @article{soucek2020transnetv2,
     title={TransNet V2: An effective deep network architecture for fast shot transition detection},

@@ -17,6 +17,10 @@ TransNet V2 (this repo) | **77.9** | **96.2** | 93.9
 
 
 ### REPLICATE THE WORK
+> Note the datasets for training are tens of gigabytes in size, hundreds of gigabytes when exported.
+>
+> **You do not need to train the network, use code and instructions in [_inference_ folder](https://github.com/soCzech/TransNetV2/tree/master/inference) to detect shots in your videos.**
+
 This repository contains all that is needed to run any experiment for TransNet V2 network including network training and dataset creation.
 All experiments should be runnable in [this NVIDIA DOCKER file](https://github.com/soCzech/TransNetV2/blob/master/Dockerfile).
 
@@ -33,7 +37,7 @@ In general these steps need to be done in order to replicate our work:
 
 
 ### CREDITS
-If find useful, please cite us;)
+If found useful, please cite us;)
 ```
 @article{soucek2020transnetv2,
     title={TransNet V2: An effective deep network architecture for fast shot transition detection},
