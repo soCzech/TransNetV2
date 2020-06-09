@@ -23,14 +23,35 @@ def predictions_to_scenes(predictions):
     return np.array(scenes, dtype=np.int32)
 
 
-def evaluate_scenes(gt_scenes, pred_scenes, return_mistakes=False):
+def evaluate_scenes(gt_scenes, pred_scenes, return_mistakes=False, n_frames_miss_tolerance=2):
     """
     Adapted from: https://github.com/gyglim/shot-detection-evaluation
     The original based on: http://imagelab.ing.unimore.it/imagelab/researchActivity.asp?idActivity=19
+
+    n_frames_miss_tolerance:
+        Number of frames it is possible to miss ground truth by, and still being counted as a correct detection.
+
+    Examples of computation with different tolerance margin:
+    n_frames_miss_tolerance = 0
+      pred_scenes: [[0, 5], [6, 9]] -> pred_trans: [[5.5, 5.5]]
+      gt_scenes:   [[0, 5], [6, 9]] -> gt_trans:   [[5.5, 5.5]] -> HIT
+      gt_scenes:   [[0, 4], [5, 9]] -> gt_trans:   [[4.5, 4.5]] -> MISS
+    n_frames_miss_tolerance = 1
+      pred_scenes: [[0, 5], [6, 9]] -> pred_trans: [[5.0, 6.0]]
+      gt_scenes:   [[0, 5], [6, 9]] -> gt_trans:   [[5.0, 6.0]] -> HIT
+      gt_scenes:   [[0, 4], [5, 9]] -> gt_trans:   [[4.0, 5.0]] -> HIT
+      gt_scenes:   [[0, 3], [4, 9]] -> gt_trans:   [[3.0, 4.0]] -> MISS
+    n_frames_miss_tolerance = 2
+      pred_scenes: [[0, 5], [6, 9]] -> pred_trans: [[4.5, 6.5]]
+      gt_scenes:   [[0, 5], [6, 9]] -> gt_trans:   [[4.5, 6.5]] -> HIT
+      gt_scenes:   [[0, 4], [5, 9]] -> gt_trans:   [[3.5, 5.5]] -> HIT
+      gt_scenes:   [[0, 3], [4, 9]] -> gt_trans:   [[2.5, 4.5]] -> HIT
+      gt_scenes:   [[0, 2], [3, 9]] -> gt_trans:   [[1.5, 3.5]] -> MISS
     """
 
-    gt_scenes = gt_scenes.astype(np.float32) + np.array([[0.5, -0.5]])
-    pred_scenes = pred_scenes.astype(np.float32) + np.array([[0.5, -0.5]])
+    shift = n_frames_miss_tolerance / 2
+    gt_scenes = gt_scenes.astype(np.float32) + np.array([[-0.5 + shift, 0.5 - shift]])
+    pred_scenes = pred_scenes.astype(np.float32) + np.array([[-0.5 + shift, 0.5 - shift]])
 
     gt_trans = np.stack([gt_scenes[:-1, 1], gt_scenes[1:, 0]], 1)
     pred_trans = np.stack([pred_scenes[:-1, 1], pred_scenes[1:, 0]], 1)
