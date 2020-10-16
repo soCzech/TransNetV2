@@ -14,7 +14,12 @@ class TransNetV2:
                 print(f"[TransNetV2] Using weights from {model_dir}.")
 
         self._input_size = (27, 48, 3)
-        self._model = tf.saved_model.load(model_dir)
+        try:
+            self._model = tf.saved_model.load(model_dir)
+        except OSError as exc:
+            raise IOError(f"[TransNetV2] It seems that files in {model_dir} are corrupted or missing. "
+                          f"Re-download them manually and retry. For more info, see: "
+                          f"https://github.com/soCzech/TransNetV2/issues/1#issuecomment-647357796") from exc
 
     def predict_raw(self, frames: np.ndarray):
         assert len(frames.shape) == 5 and frames.shape[2:] == self._input_size, \

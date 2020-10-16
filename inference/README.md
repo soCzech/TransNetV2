@@ -78,6 +78,8 @@ model.visualize_predictions(
 ```
 
 ### NOTES
+> :exclamation: It may happen that you get **DecodeError**, **OSError**, **IOError** with text *'Error parsing message'*. It is caused by corrupted files in *transnetv2-weights* folder. To fix the error, re-download the files manually.  
+ 
 > Note that your results on test sets can slightly differ when using different extraction method or particular `ffmpeg` version.
 
 ### CREDITS
