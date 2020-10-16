@@ -78,7 +78,7 @@ model.visualize_predictions(
 ```
 
 ### NOTES
-> :exclamation: It may happen that you get **DecodeError**, **OSError**, **IOError** with text *'Error parsing message'*. It is caused by corrupted files in *transnetv2-weights* folder. To fix the error, re-download the files manually.  
+> :exclamation: It may happen that you get **DecodeError**, **OSError**, **IOError** with text *'Error parsing message'*. It is caused by corrupted files in *transnetv2-weights* folder. To fix the error, re-download the files manually. SHA256 sums for the files can be found in [issue #1](https://github.com/soCzech/TransNetV2/issues/1#issuecomment-647357796).
  
 > Note that your results on test sets can slightly differ when using different extraction method or particular `ffmpeg` version.
 
