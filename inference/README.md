@@ -1,6 +1,6 @@
 # TransNet V2: Shot Boundary Detection Neural Network
 
-Inference code for [TransNet V2: An effective deep network architecture for fast shot transition detection](#TBA) (link will be added in the coming weeks).
+Inference code for [TransNet V2: An effective deep network architecture for fast shot transition detection](https://arxiv.org/abs/2008.04838).
 
 ### INSTALL REQUIREMENTS
 ```bash
@@ -82,12 +82,16 @@ model.visualize_predictions(
 
 ### CREDITS
 If found useful, please cite us;)
-```
-@article{soucek2020transnetv2,
-    title={TransNet V2: An effective deep network architecture for fast shot transition detection},
-    author={Sou{\v{c}}ek, Tom{\'a}{\v{s}} and and Loko{\v{c}}, Jakub},
-    year={2020}
-}
-```
+- This paper: [TransNet V2: An effective deep network architecture for fast shot transition detection](https://arxiv.org/abs/2008.04838)
+    ```
+    @article{soucek2020transnetv2,
+        title={TransNet V2: An effective deep network architecture for fast shot transition detection},
+        author={Sou{\v{c}}ek, Tom{\'a}{\v{s}} and Loko{\v{c}}, Jakub},
+        year={2020},
+        journal={arXiv preprint arXiv:2008.04838},
+    }
+    ```
 
-The older paper [TransNet: A deep network for fast detection of common shot transitions](https://arxiv.org/abs/1906.03363).
+- ACM Multimedia paper of the older version: [A Framework for Effective Known-item Search in Video](https://dl.acm.org/doi/abs/10.1145/3343031.3351046)
+
+- The older version paper: [TransNet: A deep network for fast detection of common shot transitions](https://arxiv.org/abs/1906.03363)
