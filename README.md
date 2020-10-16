@@ -12,8 +12,8 @@ TransNet V2 (this repo) | **77.9** | **96.2** | 93.9
 [Tang et al., ResNet baseline](https://arxiv.org/abs/1808.04234) [(github)](https://github.com/Tangshitao/ClipShots_basline) | 76.1 | 89.3 | 92.8
 
 
-### USE IT
-**See [_inference_ folder](https://github.com/soCzech/TransNetV2/tree/master/inference) and its _README_ file.**
+### :movie_camera: USE IT ON YOUR VIDEO
+:arrow_right: **See [_inference_ folder](https://github.com/soCzech/TransNetV2/tree/master/inference) and its _README_ file.** :arrow_left:
 
 
 ### REPLICATE THE WORK
