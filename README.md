@@ -16,6 +16,10 @@ TransNet V2 (this repo) | **77.9** | **96.2** | 93.9
 :arrow_right: **See [_inference_ folder](https://github.com/soCzech/TransNetV2/tree/master/inference) and its _README_ file.** :arrow_left:
 
 
+### :rocket: PYTORCH VERSION for inference RELEASED
+**See [_inference-pytorch_ folder](https://github.com/soCzech/TransNetV2/tree/master/inference-pytorch) and its _README_ file.**
+
+
 ### REPLICATE THE WORK
 > Note the datasets for training are tens of gigabytes in size, hundreds of gigabytes when exported.
 >
