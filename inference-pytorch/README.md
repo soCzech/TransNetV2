@@ -1,8 +1,10 @@
+# Pytorch implementation of TransNet V2
+
 This is Pytorch reimplementation of the TransNetV2 model.
 It should produce identical results as the Tensorflow version.
 The code is for inference only, there is no plan to release Pytorch implementation of the training code.
 
-See [tensofrlow inference readme](https://github.com/soCzech/TransNetV2/tree/master/inference)
+See [tensorflow inference readme](https://github.com/soCzech/TransNetV2/tree/master/inference)
 for details and code how to get correctly predictions for a whole video file.
 
 ### INSTALL REQUIREMENTS
