@@ -304,11 +304,11 @@ class ColorHistograms(nn.Module):
         similarities = torch.bmm(x, x.transpose(1, 2))  # [batch_size, time_window, time_window]
         similarities_padded = functional.pad(similarities, [(self.lookup_window - 1) // 2, (self.lookup_window - 1) // 2])
 
-        batch_indices = torch.arange(0, batch_size).view([batch_size, 1, 1]).repeat(
+        batch_indices = torch.arange(0, batch_size, device=x.device).view([batch_size, 1, 1]).repeat(
             [1, time_window, self.lookup_window])
-        time_indices = torch.arange(0, time_window).view([1, time_window, 1]).repeat(
+        time_indices = torch.arange(0, time_window, device=x.device).view([1, time_window, 1]).repeat(
             [batch_size, 1, self.lookup_window])
-        lookup_indices = torch.arange(0, self.lookup_window).view([1, 1, self.lookup_window]).repeat(
+        lookup_indices = torch.arange(0, self.lookup_window, device=x.device).view([1, 1, self.lookup_window]).repeat(
             [batch_size, time_window, 1]) + time_indices
 
         similarities = similarities_padded[batch_indices, time_indices, lookup_indices]
