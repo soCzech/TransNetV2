@@ -93,7 +93,7 @@ class TransNetV2:
         ).run(capture_stdout=True, capture_stderr=True)
 
         video = np.frombuffer(video_stream, np.uint8).reshape([-1, 27, 48, 3])
-        return (video, *self.predict_frames(video))
+        return (video, *self.predict_frames(video, silent = silent))
 
     @staticmethod
     def predictions_to_scenes(predictions: np.ndarray, threshold: float = 0.5):
